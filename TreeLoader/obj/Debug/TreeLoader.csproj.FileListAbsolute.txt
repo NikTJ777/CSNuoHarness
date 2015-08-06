@@ -1,0 +1,6 @@
+C:\Users\jmussman\Projects\Radia\LoadItUp\LoadItUp\bin\Debug\LoadItUp.exe.config
+C:\Users\jmussman\Projects\Radia\LoadItUp\LoadItUp\obj\Debug\LoadItUp.exe
+C:\Users\jmussman\Projects\Radia\LoadItUp\LoadItUp\obj\Debug\LoadItUp.pdb
+C:\Users\jmussman\Projects\Radia\LoadItUp\LoadItUp\bin\Debug\LoadItUp.exe
+C:\Users\jmussman\Projects\Radia\LoadItUp\LoadItUp\bin\Debug\LoadItUp.pdb
+C:\Users\jmussman\Projects\Radia\LoadItUp\LoadItUp\bin\Debug\NuoDb.Data.Client.dll
