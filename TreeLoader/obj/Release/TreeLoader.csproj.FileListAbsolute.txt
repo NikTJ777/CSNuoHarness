@@ -5,3 +5,4 @@ C:\Users\Administrator\Documents\Radia\TreeLoader\TreeLoader\bin\Release\NuoDb.D
 C:\Users\Administrator\Documents\Radia\TreeLoader\TreeLoader\obj\Release\LoadItUp.exe
 C:\Users\Administrator\Documents\Radia\TreeLoader\TreeLoader\obj\Release\LoadItUp.pdb
 C:\Users\Administrator\Documents\Radia\TreeLoader\TreeLoader\obj\Release\TreeLoader.csprojResolveAssemblyReference.cache
+C:\Users\nik\NuoDB\customer\Radia\CSNuoTest\TreeLoader\bin\Release\LoadItUp.exe.config

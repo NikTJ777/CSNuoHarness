@@ -7,7 +7,7 @@
     <ProjectGuid>{4EC81655-0881-42A0-B7EA-2296373D3A19}</ProjectGuid>
     <OutputType>Exe</OutputType>
     <AppDesignerFolder>Properties</AppDesignerFolder>
-    <RootNamespace>LoadItUp</RootNamespace>
+    <RootNamespace>NuoTest</RootNamespace>
     <AssemblyName>LoadItUp</AssemblyName>
     <TargetFrameworkVersion>v4.5</TargetFrameworkVersion>
     <FileAlignment>512</FileAlignment>
@@ -46,10 +46,14 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="Audit.cs" />
+    <Compile Include="Controller.cs" />
     <Compile Include="Counter.cs" />
     <Compile Include="CounterFactory.cs" />
     <Compile Include="Entity.cs" />
     <Compile Include="AbstractRepository.cs" />
+    <Compile Include="EventRepository.cs" />
+    <Compile Include="Logger.cs" />
+    <Compile Include="OwnerRepository.cs" />
     <Compile Include="PersistenceException.cs" />
     <Compile Include="Repository.cs" />
     <Compile Include="SchemaBuilder.cs" />

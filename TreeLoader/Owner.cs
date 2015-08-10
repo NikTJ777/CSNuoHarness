@@ -6,7 +6,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace LoadItUp
+namespace NuoTest
 {
 
 	class Owner : Entity
@@ -14,6 +14,7 @@ namespace LoadItUp
 
 		internal String name { get; set; }
 		internal String masterAlias { get; set; }
+        internal String region { get; set; }
 
 		internal Owner(long id, String name) : base(id)
         { this.name = name; }

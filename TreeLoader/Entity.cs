@@ -1,6 +1,6 @@
 ﻿using System;
 
-namespace LoadItUp
+namespace NuoTest
 {
     public abstract class Entity
     {

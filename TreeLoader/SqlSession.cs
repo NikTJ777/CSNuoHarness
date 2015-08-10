@@ -1,25 +1,36 @@
 ﻿using System;
 using System.Threading;
 using System.Collections.Generic;
+using System.Data;
 using System.Data.Common;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using NuoDb.Data.Client;
 
-namespace LoadItUp
+
+namespace NuoTest
 {
     class SqlSession : IDisposable
     {
         private Mode mode;
+        private Mode commitMode;
 
         private DbConnection connection;
         private DbTransaction transaction;
-        private DbCommand batch;
+        private List<DataRow> batch;
         private List<DbCommand> statements;
 
         //private static DataSource dataSource;
+        private static DbProviderFactory dataSource;
+        private static String updateConnectionString;
+        private static String queryConnectionString;
+
         private static ThreadLocal<SqlSession> current = new ThreadLocal<SqlSession>();
         private static Dictionary<SqlSession, String> sessions;
+        private static IsolationLevel updateIsolation;
+
+        private static readonly String DBDRIVER = "NuoDB.Data.Client";
 
         private static Logger log = Logger.getLogger("SqlSession");
 
@@ -27,19 +38,80 @@ namespace LoadItUp
         //    this.mode = mode;
         //}
 
-        public enum Mode { AUTO_COMMIT, TRANSACTIONAL, BATCH };
+        public enum Mode { AUTO_COMMIT, TRANSACTIONAL, BATCH, READ_ONLY };
 
-        public static void init(DataSource ds, int maxThreads) {
-            dataSource = ds;
+        public static void init(Dictionary<String, String> properties, int maxThreads)
+        {
             sessions = new Dictionary<SqlSession, String>();
+
+            dataSource = DbProviderFactories.GetFactory(properties["dotnet.driver"]);
+
+            DbConnectionStringBuilder connectionStringBuilder = dataSource.CreateConnectionStringBuilder();
+
+            connectionStringBuilder.Add("User", properties["user"]);
+            connectionStringBuilder.Add("Password", properties["password"]);
+            connectionStringBuilder.Add("Server", properties["url.server"]);
+            connectionStringBuilder.Add("Database", properties["url.database"]);
+            connectionStringBuilder.Add("Schema", properties["defaultSchema"]);
+            connectionStringBuilder.Add("Pooling", "True");
+            connectionStringBuilder.Add("MaxLifetime", properties["maxAge"]);
+
+            if (maxThreads > 100)
+            {
+                connectionStringBuilder.Add("MaxConnections", String.Format("{0}", maxThreads));
+            }
+
+            // process any options 
+            String options = properties["url.options"];
+            if (options.StartsWith("?")) options = options.Substring(1);
+            String[] optlist = options.Split("&".ToCharArray());
+            foreach (String opt in optlist)
+            {
+                String[] keyval = opt.Split("=".ToCharArray());
+                if (keyval.Length == 2) connectionStringBuilder.Add(keyval[0], keyval[1]);
+                else if (keyval.Length == 1) connectionStringBuilder.Add(keyval[0], "true");
+            }
+
+            String isolation = properties["default.isolation"];
+            if (isolation == null || isolation.Length == 0) isolation = "CONSISTENT_READ";
+            switch (isolation)
+            {
+                case "READ_COMMITTED":
+                    //updateIsolation = Connection.TRANSACTION_READ_COMMITTED;
+                    updateIsolation = IsolationLevel.ReadCommitted;
+                    break;
+
+                case "SERIALIZABLE":
+                    //updateIsolation = Connection.TRANSACTION_SERIALIZABLE;
+                    updateIsolation = IsolationLevel.Serializable;
+                    break;
+
+                case "CONSISTENT_READ":
+                    //updateIsolation = TransactionIsolation.TRANSACTION_CONSISTENT_READ;
+                    updateIsolation = IsolationLevel.Unspecified;
+                    break;
+
+                case "WRITE_COMMITTED":
+                    //updateIsolation = TransactionIsolation.TRANSACTION_WRITE_COMMITTED;
+                    updateIsolation = IsolationLevel.Unspecified;
+                    break;
+            }
+
+            updateConnectionString = connectionStringBuilder.ConnectionString;
+
+            // make this one READ_ONLY
+            queryConnectionString = connectionStringBuilder.ConnectionString;
         }
 
-        public SqlSession(Mode mode) {
+        public SqlSession(Mode mode)
+        {
             this.mode = mode;
+            commitMode = (mode == Mode.AUTO_COMMIT || mode == Mode.READ_ONLY ? Mode.AUTO_COMMIT : Mode.TRANSACTIONAL);
 
-            SqlSession session = current.get();
-            if (session != null) {
-                session.close();
+            SqlSession session = current.Value;
+            if (session != null)
+            {
+                session.Dispose();
                 throw new PersistenceException("Previous session for this thread was not correctly closed");
             }
 
@@ -50,13 +122,15 @@ namespace LoadItUp
             //return session;
         }
 
-        public static void cleanup() {
+        public static void cleanup()
+        {
             if (sessions.Count == 0)
                 return;
 
             int released = 0;
-            foreach (KeyValuePair<SqlSession, String> entry in sessions) {
-                log.info(String.Format("cleaning up unclosed session from %s", entry.Value));
+            foreach (KeyValuePair<SqlSession, String> entry in sessions)
+            {
+                log.info(String.Format("cleaning up unclosed session from {0}", entry.Value));
                 entry.Key.Dispose();
                 released++;
             }
@@ -64,7 +138,8 @@ namespace LoadItUp
             throw new PersistenceException("{0} unclosed SqlSessions were cleaned up", released);
         }
 
-        public static SqlSession getCurrent() {
+        public static SqlSession getCurrent()
+        {
             SqlSession session = current.Value;
             if (session == null)
                 throw new PersistenceException("No current session");
@@ -72,27 +147,34 @@ namespace LoadItUp
             return session;
         }
 
-        public void rollback() {
-            if (transaction != null && mode != Mode.AUTO_COMMIT) {
+        public void rollback()
+        {
+            if (transaction != null && commitMode != Mode.AUTO_COMMIT)
+            {
                 try { transaction.Rollback(); }
-                catch (Exception e) {}
+                catch (Exception e) { }
             }
         }
 
-        public override void Dispose() {
+        public override void Dispose()
+        {
             closeStatements();
             closeConnection();
             current.Value = null;
             sessions.Remove(this);
         }
 
-        public DbCommand getStatement(String sql) {
-            if (batch != null) {
-                batch.Parameters.Clear();
-                return batch;
+        public DbCommand getStatement(String sql)
+        {
+            if (mode == Mode.BATCH && batch != null && batch.Count > 0)
+            {
+                throw new PersistenceException("getStatement called in BATCH MODE");
+                //batch.Clear();
+                //return batch;
             }
 
-            if (statements == null) {
+            if (statements == null)
+            {
                 statements = new List<DbCommand>(16);
                 //statements = new HashMap<String, DbCommand>(16);
             }
@@ -100,34 +182,39 @@ namespace LoadItUp
             //DbCommand ps = statements.get(sql);
 
             //if (ps == null) {
-                //int returnMode = (mode == Mode.AUTO_COMMIT ? Statement.RETURN_GENERATED_KEYS : Statement.NO_GENERATED_KEYS);
-                //int returnMode = Statement.RETURN_GENERATED_KEYS;
-                //DbCommand ps = connection().prepareStatement(sql);
-                DbCommand ps = connection().CreateCommand();
-                ps.CommandText = sql;
-                statements.Add(ps);
-                //statements.put(sql, ps);
+            //int returnMode = (mode == Mode.AUTO_COMMIT ? Statement.RETURN_GENERATED_KEYS : Statement.NO_GENERATED_KEYS);
+            //int returnMode = Statement.RETURN_GENERATED_KEYS;
+            //DbCommand ps = connection().prepareStatement(sql);
+            DbCommand ps = connection().CreateCommand();
+            ps.CommandText = sql;
+            statements.Add(ps);
+            //statements.put(sql, ps);
             //} else {
             //    ps.clearParameters();
             //}
 
-            batch = (mode == Mode.BATCH ? ps : null);
+            //batch = (mode == Mode.BATCH ? ps : null);
 
             return ps;
         }
 
-        public void execute(String script) {
+        public void execute(String script)
+        {
             if (script == null || script.Length == 0) return;
 
             String[] lines = script.Split("@".ToCharArray());
 
-            DbTransaction transaction = connection().BeginTransaction();
-            using(DbCommand command = connection().CreateCommand() ) {
-                foreach (String line in lines) {
-                    command.CommandText = line.Trim();
-                    command.ExecuteNonQuery();
+            using (DbTransaction transaction = connection().BeginTransaction())
+            {
+                using (DbCommand command = connection().CreateCommand())
+                {
+                    foreach (String line in lines)
+                    {
+                        command.CommandText = line.Trim();
+                        command.ExecuteNonQuery();
+                    }
+                    transaction.Commit();
                 }
-                transaction.Commit();
             }
 
             /*
@@ -149,21 +236,67 @@ namespace LoadItUp
             */
         }
 
-        public DbDataReader update(DbCommand statement)
+        /**
+         * This method signature is a bit ugly.
+         * This entire class should be refactored to use closures.
+         */
+        public long update(DataRow row, String sql)
         {
-            if (mode == Mode.BATCH) {
-                //statement.addBatch();
-            } else {
-                statement.ExecuteNonQuery();
+            if (mode == Mode.BATCH)
+            {
+                batch.Add(row);
+            }
+            else
+            {
+                using (DbCommand cmd = getStatement(sql))
+                {
+                    foreach (Object o in row.ItemArray)
+                    {
+                        cmd.Parameters.Add(o);
+                    }
+
+                    return update(cmd);
+                }
             }
 
-            return (mode == Mode.AUTO_COMMIT ? statement.getGeneratedKeys() : null);
+            return 0;
         }
 
-        protected DbConnection connection()
+        public long update(DbCommand update)
         {
-            if (connection == null) {
-                connection = dataSource.getConnection();
+            return (long)update.ExecuteScalar();
+        }
+
+        protected DbConnection Connection()
+        {
+            if (connection == null)
+            {
+                connection = dataSource.CreateConnection();
+                connection.ConnectionString = (mode == Mode.READ_ONLY ? queryConnectionString : updateConnectionString);
+
+                /*
+                switch (mode)
+                {
+                    case READ_ONLY:
+                        connection.setReadOnly(true);
+                        connection.setTransactionIsolation(Connection.TRANSACTION_READ_COMMITTED);
+                        connection.setAutoCommit(true);
+                        break;
+
+                    case AUTO_COMMIT:
+                        connection.setReadOnly(false);
+                        connection.setAutoCommit(true);
+                        connection.setTransactionIsolation(updateIsolation);
+                        break;
+                    default:
+                        connection.setReadOnly(false);
+                        connection.setAutoCommit(false);
+                        connection.setTransactionIsolation(updateIsolation);
+                }
+                 */
+
+                connection.ConnectionString = connectionString;
+                connection.Open();
             }
 
             //assert (connection != null);
@@ -171,35 +304,50 @@ namespace LoadItUp
             return connection;
         }
 
-        protected void closeStatements() {
-            if (batch != null) {
-                try { batch.; } catch (Exception e) {}
-                batch = null;
+        protected void closeStatements()
+        {
+            if (batch != null)
+            {
+                try
+                {
+                    NuoDbBulkLoader loader = new NuoDbBulkLoader(connectionString);
+                    loader.WriteToServer(batch.ToArray());
+                }
+                catch (Exception e) { }
+                batch.Clear();
             }
 
             if (statements == null) return;
 
-            for (DbCommand ps : statements) {
-            //for (DbCommand ps : statements.values()) {
-                try { ps.close(); } catch (Exception e) {}
+            foreach (DbCommand ps in statements)
+            {
+                //for (DbCommand ps : statements.values()) {
+                try { ps.Dispose(); }
+                catch (Exception e) { }
             }
 
-            statements.clear();
+            statements.Clear();
         }
 
         protected void closeConnection()
         {
-            if (connection != null) {
-                if (mode != Mode.AUTO_COMMIT) {
-                    try { connection.commit(); }
-                    catch (SQLException e) {
-                        throw new PersistenceException(e, "Error commiting JDBC connection");
+            if (connection != null)
+            {
+                if (commitMode != Mode.AUTO_COMMIT)
+                {
+                    try { connection.Commit(); }
+                    catch (/*SQL*/Exception e)
+                    {
+                        throw new PersistenceException(e, "Error commiting connection");
                     }
                 }
 
-                try { connection.close(); } catch (Exception e) {}
+                try { connection.Dispose(); }
+                catch (Exception e) { }
 
                 connection = null;
             }
         }
+    }
+}
 

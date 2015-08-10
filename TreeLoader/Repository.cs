@@ -4,7 +4,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace LoadItUp
+namespace NuoTest
 {
     interface Repository<T> where T : Entity
     {

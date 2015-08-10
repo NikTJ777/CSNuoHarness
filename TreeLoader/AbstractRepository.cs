@@ -1,11 +1,13 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Data;
 using System.Data.Common;
 using System.Linq;
 using System.Text;
-using System.Threading.Tasks;
+using System.Threading;
+using NuoDb.Data.Client;
 
-namespace LoadItUp
+namespace NuoTest
 {
     abstract class AbstractRepository<T> : Repository<T> where T : Entity
     {
@@ -13,16 +15,22 @@ namespace LoadItUp
         internal String[] columns;
         internal String names;
         internal String replace;
+        internal DataTable table;
 
-        protected static String findSql = "SELECT * from {0} where id = '{1}'";
+        internal int maxRetry = 3;
+        internal int retrySleep = 2000;
 
-        protected static String findBySql = "SELECT * from {0} where {1} = '{2}'";
+        protected static readonly String findSql = "SELECT * from {0} where id = '{1}'";
 
-        protected static String persistSql = "INSERT into {0} ({1}) values ({2})";
+        protected static readonly String findBySql = "SELECT * from {0} where {1} = '{2}'";
 
-        protected static String updateSql = "UPDATE {0} set {1} = ({2}) where id = '{3}'";
+        protected static readonly String persistSql = "INSERT into {0} ({1}) values ({2})";
 
-        protected static String getSql = "SELECT {0} from {1} {2}";
+        protected static readonly String updateSql = "UPDATE {0} set {1} = ({2}) where id = '{3}'";
+
+        protected static readonly String getSql = "SELECT {0} from {1} {2}";
+
+        internal static Logger log = Logger.getLogger("AbstractRepository");
 
         internal AbstractRepository(String tableName, params String[] columns)
         {
@@ -49,51 +57,48 @@ namespace LoadItUp
         public T findById(long id)
         {
             String sql = String.Format(findSql, tableName, id);
-            using (DbDataReader row = SqlSession.getCurrent().getStatement(sql).executeQuery()) {
-                if (row == null || row.next() == false) return null;
+            using (DbDataReader row = SqlSession.getCurrent().getStatement(sql).ExecuteReader()) {
+                try {
+                    if (row == null || row.Read() == false) return null;
 
-                return mapIn(row);
-            } catch (SQLException e) {
-                log.info(String.Format("FindById failed due to {0}", e.toString()));
-                return null;
+                    return mapIn(row);
+                } catch (Exception e) {
+                    log.info(String.Format("FindById failed due to {0}", e.ToString()));
+                    return null;
+                }
             }
         }
 
 
         public override long persist(T entity)
         {
+            // do not persist an already persistent object
+            if (entity.persistent) {
+                throw new PersistenceException("Attempt to persist already persistent object {0}", entity.ToString());
+            }
 
-//            if (entity.getPersistent()) {
-//                throw new PersistenceException("Attempt to persist already persistent object {0}", entity.ToString());
-//            }
-
-            String sql = String.Format(persistSql, tableName, fields, replace);
+            String sql = String.Format(persistSql, tableName, names, replace);
             for (int retry = 0; ; retry++) {
                 SqlSession session = SqlSession.getCurrent();
 
                 try {
-                    PreparedStatement update = session.getStatement(sql);
+                    //DataRow update = session.getStatement(sql);
 
-                    mapOut(entity, update);
+                    DataRow row = mapOut(entity);
 
-                    try (ResultSet keys = session.update(update)) {
-                        if (keys != null && keys.next()) {
-                            return keys.getLong(1);
-                        }
-                    }
+                    return session.update(row, sql);
 
-                    return 0;
-                } catch (SQLTransientException te) {
+                } catch (/*NuoDbSQLTransient */Exception te) {
                     if (retry < maxRetry) {
-                        log.info(String.format("Retriable exception in persist: %s; retrying...", te.toString()));
-                        try { Thread.sleep(retrySleep); } catch (InterruptedException e) {}
+                        log.info(String.Format("Retriable exception in persist: {0}; retrying...", te.ToString()));
+                        try { Thread.Sleep(retrySleep); } catch (/*Interrupted*/Exception e) {}
                         continue;
                     }
 
-                    throw new PersistenceException(te, "Permanent error after %d retries", maxRetry);
-                } catch (SQLException e) {
-                    throw new PersistenceException(e, "Error persisting new Entity %s", entity.toString());
-                }
+                    throw new PersistenceException(te, "Permanent error after {0} retries", maxRetry);
+                } /*catch (Exception e) {
+                    throw new PersistenceException(e, "Error persisting new Entity {0}", entity.ToString());
+                } */
             }
         }
 
@@ -102,34 +107,39 @@ namespace LoadItUp
             StringBuilder builder = new StringBuilder();
             for (int x = values.Length; x > 0; x--) {
                 if (builder.Length > 0) builder.Append(", ");
-                builder.append('?'); //.append(name);
+                builder.Append('?'); //.append(name);
             }
 
-            String params = builder.toString();
+            String args = builder.ToString();
 
-            String sql = String.format(updateSql, tableName, columns, params, id);
+            String sql = String.Format(updateSql, tableName, columns, args, id);
             SqlSession session = SqlSession.getCurrent();
-            try (PreparedStatement update = session.getStatement(sql)) {
-                setParams(update, columns, values);
-            } catch (SQLException e) {
-                throw new PersistenceException(e, "Error updating table %s, id %d", getTableName(), id);
+            using (DbCommand update = session.getStatement(sql)) {
+                try {
+                    setParams(update, columns, values);
+                    session.update(update);
+                } catch (Exception e) {
+                    throw new PersistenceException(e, "Error updating table {0}, id {1}", tableName, id);
+                }
             }
         }
 
 
-        public override List<T> findAllBy(String column, Object ... param)
+        public override List<T> findAllBy(String column, params Object[] args)
         {
-            List<T> result = new ArrayList(1024);
+            List<T> result = new List<T>(1024);
             SqlSession session = SqlSession.getCurrent();
 
-            try (ResultSet row = queryBy(column, param)) {
-                while (row != null && row.next()) {
-                    result.add(mapIn(row));
-                }
+            using (DbDataReader row = queryBy(column, args)) {
+                try {
+                    while (row != null && row.Read()) {
+                        result.Add(mapIn(row));
+                    }
 
-                return result;
-            } catch (SQLException e) {
-                throw new PersistenceException(e, "Error in find all %s by %s = '%s'", tableName, column, param.toString());
+                    return result;
+                } catch (Exception e) {
+                    throw new PersistenceException(e, "Error in find all {0} by {1} = '{2}'", tableName, column, args.ToString());
+                }
             }
         }
 
@@ -137,34 +147,29 @@ namespace LoadItUp
         {
             SqlSession session = SqlSession.getCurrent();
 
-            try (PreparedStatement sql = session.getStatement(String.format(getSql, column, getTableName(), criteria))) {
-                try (ResultSet row = sql.executeQuery()) {
-                    if (row.next()) {
-                        return row.getString(1);
-                    } else {
-                        throw new PersistenceException("No matching value found: select %s from %s %s",
-                            column, getTableName(), criteria);
-                    }
+            using (DbCommand sql = session.getStatement(String.Format(getSql, column, tableName, criteria))) {
+                try {
+                    return sql.ExecuteScalar().ToString();
+                } catch (Exception e) {
+                    throw new PersistenceException(e, "Error querying for single value: {0} from {1} {2}",
+                            column, tableName, criteria);
                 }
-            } catch (SQLException e) {
-                throw new PersistenceException(e, "Error querying for single value: %s from %s %s",
-                        column, getTableName(), criteria);
             }
         }
 
-        protected ResultSet queryBy(String column, Object ... param)
+        protected DbDataReader queryBy(String column, params Object[] param)
         {
-            StringBuilder sql = new StringBuilder().append(String.format(findBySql, tableName, column, param[0].toString()));
-            for (int px = 1; px < param.length; px++) {
-                sql.append(String.format(" OR %s = '%s'", column, param[px].toString()));
+            StringBuilder sql = new StringBuilder().Append(String.Format(findBySql, tableName, column, param[0].ToString()));
+            for (int px = 1; px < param.Length; px++) {
+                sql.Append(String.Format(" OR {0} = '{1}'", column, param[px].ToString()));
             }
 
-            return SqlSession.getCurrent().getStatement(sql.toString()).executeQuery();
+            return SqlSession.getCurrent().getStatement(sql.ToString()).ExecuteReader();
         }
 
-        protected abstract T mapIn();
+        protected abstract T mapIn(DbDataReader reader);
 
-        protected abstract void mapOut(T entity, DbCommand update);
+        protected abstract DataRow mapOut(T entity);
 
         /**
          * set parameters into a PreparedStatement
@@ -176,11 +181,16 @@ namespace LoadItUp
          * @throws PersistenceException if the number of values is less than the number of column names
          * @throws SQLException if the PreparedStatement throws any exception
          */
-        protected void setParams(PreparedStatement sp, String columns, Object[] values)
+        protected void setParams(DbCommand sp, String columns, Object[] values)
         {
-            String[] fields = columns.split(", ");
-            if (values.length < fields.length)
-                throw new PersistenceException("Invalid update request: insufficient values for named columns: %s < %s", Arrays.toString(values), columns);
+            for (int vx = 0; vx < values.Length; vx++) {
+                sp.Parameters[vx].Value = values[vx];
+            }
+
+            /*
+            String[] fields = columns.Split(", ");
+            if (values.Length < fields.Length)
+                throw new PersistenceException("Invalid update request: insufficient values for named columns: {0} < {1}", values.ToString(), columns);
 
             for (int vx = 0; vx < values.length; vx++) {
                 Class type = values[vx].getClass();
@@ -201,6 +211,7 @@ namespace LoadItUp
                     sp.setDate(vx+1, new java.sql.Date(((Date) values[vx]).getTime()));
                 }
             }
+             */
         }
 
     
