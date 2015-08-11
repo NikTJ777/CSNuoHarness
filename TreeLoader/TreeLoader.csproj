@@ -49,9 +49,11 @@
     <Compile Include="Controller.cs" />
     <Compile Include="Counter.cs" />
     <Compile Include="CounterFactory.cs" />
+    <Compile Include="DataRepository.cs" />
     <Compile Include="Entity.cs" />
     <Compile Include="AbstractRepository.cs" />
     <Compile Include="EventRepository.cs" />
+    <Compile Include="GroupRepository.cs" />
     <Compile Include="Logger.cs" />
     <Compile Include="OwnerRepository.cs" />
     <Compile Include="PersistenceException.cs" />

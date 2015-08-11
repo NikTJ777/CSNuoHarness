@@ -25,9 +25,9 @@ namespace NuoTest
 
         //@Override
         public Owner mapIn(DbDataReader row) {
-            Owner owner = new Owner(row.GetInt64(0), row.GetString(0));
-            owner.masterAlias = row.GetString(1);
-            owner.region = row.GetString(2);
+            Owner owner = new Owner(row.GetInt64(0), row.GetString(1));
+            owner.MasterAlias = row.GetString(2);
+            owner.Region = row.GetString(3);
 
             return owner;
         }
@@ -35,9 +35,9 @@ namespace NuoTest
         //@Override
         public DataRow mapOut(Owner owner) {
             DataRow row = table.NewRow();
-            row[0] = owner.name;
-            row[1] = owner.masterAlias;
-            row[2] = owner.region;
+            row[0] = owner.Name;
+            row[1] = owner.MasterAlias;
+            row[2] = owner.Region;
 
             return row;
         }

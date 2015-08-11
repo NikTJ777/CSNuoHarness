@@ -4,19 +4,19 @@ namespace NuoTest
 {
     public abstract class Entity
     {
-        internal long id { get; set;  }
-        internal bool persistent { get; set;  }
+        internal long Id { get; set;  }
+        internal bool Persistent { get; set;  }
 
 	    protected Entity(long id)
 	    {
-            this.id = id;
-            persistent = true;
+            this.Id = id;
+            Persistent = true;
 	    }
 
         public Entity()
         {
-            id = 0;
-            persistent = false;
+            Id = 0;
+            Persistent = false;
         }
     }
 }
