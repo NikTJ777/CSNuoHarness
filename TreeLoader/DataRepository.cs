@@ -94,6 +94,4 @@ namespace NuoTest
         }
     }
 
-
-    }
 }

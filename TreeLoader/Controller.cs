@@ -1,47 +1,48 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
+using System.Reflection;
 using System.Text;
+using System.Text.RegularExpressions;
+using System.Threading;
 using System.Threading.Tasks;
 
 namespace NuoTest
 {
     class Controller
     {
-    OwnerRepository ownerRepository;
-    EventRepository eventRepository;
-    GroupRepository groupRepository;
-    DataRepository dataRepository;
+    internal OwnerRepository ownerRepository;
+    internal EventRepository eventRepository;
+    internal GroupRepository groupRepository;
+    internal DataRepository dataRepository;
 
-    ExecutorService insertExecutor;
-    ScheduledExecutorService queryExecutor;
+    internal ExecutorService insertExecutor;
+    internal ScheduledExecutorService queryExecutor;
 
 
-    Properties fileProperties;
-    Properties appProperties;
+    Dictionary<String, String> fileProperties;
+    Dictionary<String, String> appProperties;
 
-    long runTime;
-    float averageRate, timingSpeedup;
-    int minViewAfterInsert, maxViewAfterInsert;
-    int minGroups, maxGroups;
-    int minData, maxData;
-    float burstProbability;
-    int minBurst, maxBurst;
-    int maxQueued, queryBackoff;
-    boolean initDb = false;
-    boolean queryOnly = false;
+    internal long runTime;
+    internal float averageRate, timingSpeedup;
+    internal int minViewAfterInsert, maxViewAfterInsert;
+    internal int minGroups, maxGroups;
+    internal int minData, maxData;
+    internal float burstProbability;
+    internal int minBurst, maxBurst;
+    internal int maxQueued, queryBackoff;
+    bool initDb = false;
+    bool queryOnly = false;
 
-    SqlSession.Mode bulkCommitMode;
+    internal SqlSession.Mode bulkCommitMode;
 
-    //volatile long totalInserts = 0;
-    //volatile long totalInsertTime = 0;
+    internal Int64 totalInserts = 0;
+    internal Int64 totalInsertTime = 0;
 
-    AtomicLong totalInserts = new AtomicLong();
-    AtomicLong totalInsertTime = new AtomicLong();
-
-    AtomicLong totalQueries = new AtomicLong();
-    AtomicLong totalQueryRecords = new AtomicLong();
-    AtomicLong totalQueryTime = new AtomicLong();
+    internal Int64 totalQueries = 0;
+    internal Int64 totalQueryRecords = 0;
+    internal Int64 totalQueryTime = 0;
 
     long unique;
 
@@ -50,97 +51,98 @@ namespace NuoTest
 
     private Random random = new Random();
 
-    private static final Properties defaultProperties = new Properties();
+    private Dictionary<String, String> defaultProperties = new Dictionary<String, String>();
 
-    public static final String PROPERTIES_PATH =    "properties.path";
-    public static final String AVERAGE_RATE =       "timing.rate";
-    public static final String MIN_VIEW_DELAY =     "timing.min.view.delay";
-    public static final String MAX_VIEW_DELAY =     "timing.max.view.delay";
-    public static final String TIMING_SPEEDUP =     "timing.speedup";
-    public static final String INSERT_THREADS =     "insert.threads";
-    public static final String QUERY_THREADS =      "query.threads";
-    public static final String MAX_QUEUED =         "max.queued";
-    public static final String DB_PROPERTIES_PATH = "db.properties.path";
-    public static final String RUN_TIME =           "run.time";
-    public static final String MIN_GROUPS =         "min.groups";
-    public static final String MAX_GROUPS =         "max.groups";
-    public static final String MIN_DATA =           "min.data";
-    public static final String MAX_DATA =           "max.data";
-    public static final String BURST_PROBABILITY_PERCENT = "burst.probability.percent";
-    public static final String MIN_BURST =          "min.burst";
-    public static final String MAX_BURST =          "max.burst";
-    public static final String DB_INIT =            "db.init";
-    public static final String DB_INIT_SQL =        "db.init.sql";
-    public static final String DB_SCHEMA =          "db.schema";
-    public static final String BULK_COMMIT_MODE =   "bulk.commit.mode";
-    public static final String QUERY_ONLY =         "query.only";
-    public static final String QUERY_BACKOFF =      "query.backoff";
-    public static final String UPDATE_ISOLATION =   "update.isolation";
-    public static final String CONNECTION_TIMEOUT = "connection.timeout";
-    public static final String DB_PROPERTY_PREFIX = "db.property.prefix";
+    public const String PROPERTIES_PATH =    "properties.path";
+    public const String AVERAGE_RATE =       "timing.rate";
+    public const String MIN_VIEW_DELAY =     "timing.min.view.delay";
+    public const String MAX_VIEW_DELAY =     "timing.max.view.delay";
+    public const String TIMING_SPEEDUP =     "timing.speedup";
+    public const String INSERT_THREADS =     "insert.threads";
+    public const String QUERY_THREADS =      "query.threads";
+    public const String MAX_QUEUED =         "max.queued";
+    public const String DB_PROPERTIES_PATH = "db.properties.path";
+    public const String RUN_TIME =           "run.time";
+    public const String MIN_GROUPS =         "min.groups";
+    public const String MAX_GROUPS =         "max.groups";
+    public const String MIN_DATA =           "min.data";
+    public const String MAX_DATA =           "max.data";
+    public const String BURST_PROBABILITY_PERCENT = "burst.probability.percent";
+    public const String MIN_BURST =          "min.burst";
+    public const String MAX_BURST =          "max.burst";
+    public const String DB_INIT =            "db.init";
+    public const String DB_INIT_SQL =        "db.init.sql";
+    public const String DB_SCHEMA =          "db.schema";
+    public const String BULK_COMMIT_MODE =   "bulk.commit.mode";
+    public const String QUERY_ONLY =         "query.only";
+    public const String QUERY_BACKOFF =      "query.backoff";
+    public const String UPDATE_ISOLATION =   "update.isolation";
+    public const String CONNECTION_TIMEOUT = "connection.timeout";
+    public const String DB_PROPERTY_PREFIX = "db.property.prefix";
 
-    private static Logger appLog = Logger.getLogger("JNuoTest");
-    private static Logger insertLog = Logger.getLogger("InsertLog");
-    private static Logger viewLog = Logger.getLogger("EventViewer");
+    internal static Logger appLog = Logger.getLogger("JNuoTest");
+    internal static Logger insertLog = Logger.getLogger("InsertLog");
+    internal static Logger viewLog = Logger.getLogger("EventViewer");
 
-    private static final double Nano2Millis = 1000000.0;
-    private static final double Nano2Seconds = 1000000000.0;
-    private static final double Millis2Seconds = 1000.0;
+    internal const double Nano2Millis = 1000000.0;
+    internal const double Nano2Seconds = 1000000000.0;
+    internal const double Millis2Seconds = 1000.0;
 
-    private static final long Millis = 1000;
+    internal const int Millis = 1000;
 
-    private static final float Percent = 100.0f;
+    internal const float Percent = 100.0f;
 
     public Controller() {
-        defaultProperties.setProperty(PROPERTIES_PATH, "classpath://properties/Application.properties");
-        defaultProperties.setProperty(DB_PROPERTIES_PATH, "classpath://properties/Database.properties");
-        defaultProperties.setProperty(AVERAGE_RATE, "0");
-        defaultProperties.setProperty(MIN_VIEW_DELAY, "0");
-        defaultProperties.setProperty(MAX_VIEW_DELAY, "0");
-        defaultProperties.setProperty(TIMING_SPEEDUP, "1");
-        defaultProperties.setProperty(INSERT_THREADS, "1");
-        defaultProperties.setProperty(QUERY_THREADS, "1");
-        defaultProperties.setProperty(MAX_QUEUED, "0");
-        defaultProperties.setProperty(MIN_GROUPS, "1");
-        defaultProperties.setProperty(MAX_GROUPS, "5");
-        defaultProperties.setProperty(MIN_DATA, "500");
-        defaultProperties.setProperty(MAX_DATA, "3500");
-        defaultProperties.setProperty(BURST_PROBABILITY_PERCENT, "0");
-        defaultProperties.setProperty(MIN_BURST, "0");
-        defaultProperties.setProperty(MAX_BURST, "0");
-        defaultProperties.setProperty(RUN_TIME, "5");
-        defaultProperties.setProperty(BULK_COMMIT_MODE, "BATCH");
-        defaultProperties.setProperty(DB_INIT, "false");
-        defaultProperties.setProperty(QUERY_ONLY, "false");
-        defaultProperties.setProperty(QUERY_BACKOFF, "0");
-        defaultProperties.setProperty(UPDATE_ISOLATION, "CONSISTENT_READ");
-        defaultProperties.setProperty(CONNECTION_TIMEOUT, "300");
+        defaultProperties.Add(PROPERTIES_PATH, "classpath://properties/Application.properties");
+        defaultProperties.Add(DB_PROPERTIES_PATH, "classpath://properties/Database.properties");
+        defaultProperties.Add(AVERAGE_RATE, "0");
+        defaultProperties.Add(MIN_VIEW_DELAY, "0");
+        defaultProperties.Add(MAX_VIEW_DELAY, "0");
+        defaultProperties.Add(TIMING_SPEEDUP, "1");
+        defaultProperties.Add(INSERT_THREADS, "1");
+        defaultProperties.Add(QUERY_THREADS, "1");
+        defaultProperties.Add(MAX_QUEUED, "0");
+        defaultProperties.Add(MIN_GROUPS, "1");
+        defaultProperties.Add(MAX_GROUPS, "5");
+        defaultProperties.Add(MIN_DATA, "500");
+        defaultProperties.Add(MAX_DATA, "3500");
+        defaultProperties.Add(BURST_PROBABILITY_PERCENT, "0");
+        defaultProperties.Add(MIN_BURST, "0");
+        defaultProperties.Add(MAX_BURST, "0");
+        defaultProperties.Add(RUN_TIME, "5");
+        defaultProperties.Add(BULK_COMMIT_MODE, "BATCH");
+        defaultProperties.Add(DB_INIT, "false");
+        defaultProperties.Add(QUERY_ONLY, "false");
+        defaultProperties.Add(QUERY_BACKOFF, "0");
+        defaultProperties.Add(UPDATE_ISOLATION, "CONSISTENT_READ");
+        defaultProperties.Add(CONNECTION_TIMEOUT, "300");
     }
 
     public void configure(String[] args)
-        throws Exception
     {
         // create 2 levels of file properties (application.properties; and database.properties)
-        Properties prop = new Properties(defaultProperties);
-        fileProperties = new Properties(prop);
+        Dictionary<String, String> prop = new Dictionary<String, String>(defaultProperties);
+        fileProperties = new Dictionary<String, String>(prop);
 
         // create app properties, using fileProperties as default values
-        appProperties = new Properties(fileProperties);
+        appProperties = new Dictionary<String, String>(fileProperties);
 
         // parse the command line into app properties, as command line overrides all others
         parseCommandLine(args, appProperties);
 
-        if ("true".equalsIgnoreCase(appProperties.getProperty("help"))) {
-            System.out.println("\njava -jar <jarfilename> [option=value [, option=value, ...] ]\nwhere <option> can be any of:\n");
+        String[] keys = appProperties.Keys.ToArray();
+        Array.Sort(keys);
+            
+        String helpOption;
+        if (appProperties.TryGetValue("help", out helpOption) && "true".Equals(helpOption, StringComparison.InvariantCultureIgnoreCase)) {
+            Console.Out.WriteLine("\njava -jar <jarfilename> [option=value [, option=value, ...] ]\nwhere <option> can be any of:\n");
 
-            String[] keys = appProperties.stringPropertyNames().toArray(new String[0]);
-            Arrays.sort(keys);
-            for (String key : keys) {
-                System.out.println(String.format("%s\t\t\t\t(default=%s)", key, defaultProperties.getProperty(key)));
+            foreach (String key in keys) {
+                Console.Out.WriteLine(String.Format("{0}\t\t\t\t(default={1})", key, defaultProperties[key]));
             }
 
-            System.out.println("\nHelp called - nothing to do; exiting.");
-            System.exit(0);
+            Console.Out.WriteLine("\nHelp called - nothing to do; exiting.");
+            Environment.Exit(0);
         }
 
         // load properties from application.properties file into first (lower-priority) level of fileProperties
@@ -149,57 +151,54 @@ namespace NuoTest
         // now load database properties into second (higher-priority) level of fileProperties
         loadProperties(fileProperties, DB_PROPERTIES_PATH);
 
-        appLog.info(String.format("command-line properties: %s", appProperties));
+        appLog.info(String.Format("command-line properties: {0}", appProperties.ToString()));
 
         StringBuilder builder = new StringBuilder(1024);
-        builder.append("\n***************** Resolved Properties ********************\n");
-        String[] keys = appProperties.stringPropertyNames().toArray(new String[0]);
-        Arrays.sort(keys);
-        for (String key : keys) {
-            builder.append(String.format("%s = %s\n", key, appProperties.getProperty(key)));
+        builder.Append("\n***************** Resolved Properties ********************\n");
+        foreach (String key in keys) {
+            builder.AppendFormat("{0} = {1}\n", key, appProperties[key]);
         }
-        appLog.info(builder.toString() + "**********************************************************\n");
+        appLog.info(builder.ToString() + "**********************************************************\n");
 
-        runTime = Integer.parseInt(appProperties.getProperty(RUN_TIME)) * Millis;
-        averageRate = Float.parseFloat(appProperties.getProperty(AVERAGE_RATE));
-        minViewAfterInsert = Integer.parseInt(appProperties.getProperty(MIN_VIEW_DELAY));
-        maxViewAfterInsert = Integer.parseInt(appProperties.getProperty(MAX_VIEW_DELAY));
-        timingSpeedup = Float.parseFloat(appProperties.getProperty(TIMING_SPEEDUP));
-        minGroups = Integer.parseInt(appProperties.getProperty(MIN_GROUPS));
-        maxGroups = Integer.parseInt(appProperties.getProperty(MAX_GROUPS));
-        minData = Integer.parseInt(appProperties.getProperty(MIN_DATA));
-        maxData = Integer.parseInt(appProperties.getProperty(MAX_DATA));
-        burstProbability = Float.parseFloat(appProperties.getProperty(BURST_PROBABILITY_PERCENT));
-        minBurst = Integer.parseInt(appProperties.getProperty(MIN_BURST));
-        maxBurst = Integer.parseInt(appProperties.getProperty(MAX_BURST));
-        maxQueued = Integer.parseInt(appProperties.getProperty(MAX_QUEUED));
-        initDb = Boolean.parseBoolean(appProperties.getProperty(DB_INIT));
-        queryOnly = Boolean.parseBoolean(appProperties.getProperty(QUERY_ONLY));
-        queryBackoff = Integer.parseInt(appProperties.getProperty(QUERY_BACKOFF));
+        runTime = Int32.Parse(appProperties[RUN_TIME]) * Millis;
+        averageRate = Single.Parse(appProperties[AVERAGE_RATE]);
+        minViewAfterInsert = Int32.Parse(appProperties[MIN_VIEW_DELAY]);
+        maxViewAfterInsert = Int32.Parse(appProperties[MAX_VIEW_DELAY]);
+        timingSpeedup = Single.Parse(appProperties[TIMING_SPEEDUP]);
+        minGroups = Int32.Parse(appProperties[MIN_GROUPS]);
+        maxGroups = Int32.Parse(appProperties[MAX_GROUPS]);
+        minData = Int32.Parse(appProperties[MIN_DATA]);
+        maxData = Int32.Parse(appProperties[MAX_DATA]);
+        burstProbability = Single.Parse(appProperties[BURST_PROBABILITY_PERCENT]);
+        minBurst = Int32.Parse(appProperties[MIN_BURST]);
+        maxBurst = Int32.Parse(appProperties[MAX_BURST]);
+        maxQueued = Int32.Parse(appProperties[MAX_QUEUED]);
+        initDb = Boolean.Parse(appProperties[DB_INIT]);
+        queryOnly = Boolean.Parse(appProperties[QUERY_ONLY]);
+        queryBackoff = Int32.Parse(appProperties[QUERY_BACKOFF]);
 
-        String threadParam = appProperties.getProperty(INSERT_THREADS);
-        int insertThreads = (threadParam != null ? Integer.parseInt(threadParam) : 1);
+        String threadParam;
+        int insertThreads = (appProperties.TryGetValue(INSERT_THREADS, out threadParam) ? Int32.Parse(threadParam) : 1);
 
-        threadParam = appProperties.getProperty(QUERY_THREADS);
-        int queryThreads = (threadParam != null ? Integer.parseInt(threadParam) : 1);
+        int queryThreads = (appProperties.TryGetValue(QUERY_THREADS, out threadParam) ? Int32.Parse(threadParam) : 1);
 
         if (maxViewAfterInsert > 0 && maxViewAfterInsert < minViewAfterInsert) {
             maxViewAfterInsert = minViewAfterInsert;
         }
 
         if (maxBurst <= minBurst) {
-            appLog.info(String.format("maxBurst (%d) <= minBurst (%d); burst disabled"));
+            appLog.info(String.Format("maxBurst ({0}) <= minBurst ({1}); burst disabled", maxBurst, minBurst));
             burstProbability = minBurst = maxBurst = 0;
         }
 
         // filter out database properties, and strip off the prefix
-        Properties dbProperties = new Properties();
-        String dbPropertyPrefix = appProperties.getProperty(DB_PROPERTY_PREFIX);
-        if (! dbPropertyPrefix.endsWith(".")) dbPropertyPrefix = dbPropertyPrefix + ".";
+        Dictionary<String, String> dbProperties = new Dictionary<String, String>();
+        String dbPropertyPrefix = appProperties[DB_PROPERTY_PREFIX];
+        if (! dbPropertyPrefix.EndsWith(".")) dbPropertyPrefix = dbPropertyPrefix + ".";
 
-        for (String key : appProperties.stringPropertyNames()) {
-            if (key.startsWith(dbPropertyPrefix)) {
-                dbProperties.setProperty(key.substring(dbPropertyPrefix.length()), appProperties.getProperty(key));
+        foreach (String key in appProperties.Keys) {
+            if (key.StartsWith(dbPropertyPrefix)) {
+                dbProperties.Add(key.Substring(dbPropertyPrefix.Length), appProperties[key]);
             }
         }
 
@@ -219,15 +218,15 @@ namespace NuoTest
         eventRepository = new EventRepository(ownerRepository, groupRepository, dataRepository);
         eventRepository.init();
 
-        try { bulkCommitMode = Enum.valueOf(SqlSession.Mode.class, appProperties.getProperty(BULK_COMMIT_MODE)); }
-        catch (Exception e) { bulkCommitMode = SqlSession.Mode.BATCH; }
+        if (!Enum.TryParse<SqlSession.Mode>(appProperties[BULK_COMMIT_MODE], out bulkCommitMode))
+            bulkCommitMode = SqlSession.Mode.BATCH;
 
         insertExecutor = Executors.newFixedThreadPool(insertThreads);
         queryExecutor= Executors.newScheduledThreadPool(queryThreads);
 
-        if ("true".equalsIgnoreCase(appProperties.getProperty("check.config"))) {
-            System.out.println("CheckConfig called - nothing to do; exiting.");
-            System.exit(0);
+        if ("true".Equals(appProperties["check.config"], StringComparison.InvariantCultureIgnoreCase)) {
+            Console.Out.WriteLine("CheckConfig called - nothing to do; exiting.");
+            Environment.Exit(0);
         }
     }
 
@@ -239,10 +238,10 @@ namespace NuoTest
             initializeDatabase();
             unique = 1;
         } else {
-            try (SqlSession session = new SqlSession(SqlSession.Mode.AUTO_COMMIT)) {
+            using (SqlSession session = new SqlSession(SqlSession.Mode.AUTO_COMMIT)) {
                 String lastEventId = eventRepository.getValue("id", "ORDER BY id DESC LIMIT 1");
-                unique = Long.parseLong(lastEventId) + 1;
-                appLog.info(String.format("lastEventID = %s", lastEventId));
+                unique = Int64.Parse(lastEventId) + 1;
+                appLog.info(String.Format("lastEventID = {0}", lastEventId));
             }
         }
 
@@ -254,9 +253,8 @@ namespace NuoTest
      * @throws InterruptedException
      */
     public void run()
-        throws InterruptedException
     {
-        long start = System.currentTimeMillis();
+        long start = Environment.TickCount;
         long endTime = start + runTime;
         long now;
 
@@ -270,34 +268,31 @@ namespace NuoTest
         int burstSize = 0;
 
         // ensure that first sample time is different from start time...
-        long settleTime = 2 * Millis;
-        appLog.info(String.format("Settling for %d: ", settleTime));
-        Thread.sleep(settleTime);
+        int settleTime = 2 * Millis;
+        appLog.info(String.Format("Settling for {0}: ", settleTime));
+        Thread.Sleep(settleTime);
 
         // just run some queries
         if (queryOnly) {
 
             long eventId = 1;
 
-            while (System.currentTimeMillis() < endTime) {
-                queryExecutor.schedule(new EventViewTask(eventId++), 2, TimeUnit.MILLISECONDS);
+            while (Environment.TickCount < endTime) {
+                queryExecutor.schedule(new EventViewTask(this, eventId++), 2, TimeUnit.MILLISECONDS);
                 totalEvents++;
 
-                appLog.info(String.format("Processed %,d events containing %,d records in %.2f secs"
-                                + "\n\tThroughput:\t%.2f events/sec at %.2f ips;"
-                                + "\n\tSpeed:\t\t%,d inserts in %.2f secs = %.2f ips"
-                                + "\n\tQueries:\t%,d queries got %,d records in %.2f secs at %.2f qps",
-                        totalEvents, totalInserts.get(), (wallTime / Millis2Seconds), (Millis2Seconds * totalEvents / wallTime), (Millis2Seconds * totalInserts.get() / wallTime),
-                        totalInserts.get(), (totalInsertTime.get() / Nano2Seconds), (Nano2Seconds * totalInserts.get() / totalInsertTime.get()),
-                        totalQueries.get(), totalQueryRecords.get(), (totalQueryTime.get() / Nano2Seconds), (Nano2Seconds * totalQueries.get() / totalQueryTime.get())));
+                appLog.info(String.Format("Processed {0:N} events containing {1:N} records in {2:F2} secs"
+                                + "\n\tThroughput:\t{3:F2} events/sec at {4:F2} ips;"
+                                + "\n\tSpeed:\t\t{5:N} inserts in {6:F2} secs = {7:F2} ips"
+                                + "\n\tQueries:\t{8:N} queries got {9:N} records in {10:F2} secs at {11:F2} qps",
+                        new object[] {totalEvents, totalInserts, (wallTime / Millis2Seconds), (Millis2Seconds * totalEvents / wallTime), (Millis2Seconds * totalInserts / wallTime),
+                        totalInserts, (totalInsertTime / Nano2Seconds), (Nano2Seconds * totalInserts / totalInsertTime),
+                        totalQueries, totalQueryRecords, (totalQueryTime / Nano2Seconds), (Nano2Seconds * totalQueries / totalQueryTime)}));
 
                 //if (((ThreadPoolExecutor) queryExecutor).getQueue().size() > 10) {
-                if (totalEvents + 10 > totalQueries.get()) {
-                    appLog.info(String.format("%d queries waiting - sleeping", totalEvents - totalQueries.get()));
-                    try {
-                        Thread.sleep((200));
-                    } catch (InterruptedException e) {
-                    }
+                if (totalEvents + 10 > totalQueries) {
+                    appLog.info(String.Format("{0} queries waiting - sleeping", totalEvents - totalQueries));
+                    Thread.Sleep(200);
                 }
             }
 
@@ -306,84 +301,79 @@ namespace NuoTest
 
 
         do {
-            insertExecutor.execute(new EventGenerator(unique++));
+            insertExecutor.execute(new EventGenerator(this, unique++));
 
             totalEvents++;
 
-            appLog.info(String.format("Event scheduled. Queue size=%d", ((ThreadPoolExecutor) insertExecutor).getQueue().size()));
+            appLog.info(String.Format("Event scheduled. Queue size={0}", ((ThreadPoolExecutor) insertExecutor).getQueue().size()));
 
-            now = System.currentTimeMillis();
+            now = Environment.TickCount;
             currentRate = (Millis2Seconds * totalEvents) / (now - start);
 
-            appLog.info(String.format("now=%d; endTime=%d;  elapsed=%d; time left=%d", now, endTime, now - start, endTime - now));
+            appLog.info(String.Format("now={0}; endTime={1};  elapsed={2}; time left={3}", new object[] { now, endTime, now - start, endTime - now }));
 
             // randomly create a burst
-            if (burstSize == 0 && burstProbability > 0 && Percent * random.nextFloat() <= burstProbability) {
-                burstSize = minBurst + random.nextInt(maxBurst - minBurst);
-                appLog.info(String.format("Creating burst of %d", burstSize));
+            if (burstSize == 0 && burstProbability > 0 && Percent * random.NextDouble() <= burstProbability) {
+                burstSize = minBurst + random.Next(maxBurst - minBurst);
+                appLog.info(String.Format("Creating burst of {0}", burstSize));
             }
 
             if (burstSize > 0) {
                 burstSize--;
             } else {
                 if (averageRate > 0) {
-                    long sleepTime = (long) (averageSleep * (currentRate / averageRate));
+                    int sleepTime = (int) (averageSleep * (currentRate / averageRate));
                     if (now + sleepTime > endTime) sleepTime = 1 * Millis;
 
-                    appLog.info(String.format("Current Rate= %.2f; sleeping for %,d ms", currentRate, sleepTime));
+                    appLog.info(String.Format("Current Rate= {0:F2}; sleeping for {1:N} ms", currentRate, sleepTime));
 
                     if (timingSpeedup > 1) {
-                        sleepTime /= timingSpeedup;
-                        appLog.info(String.format("Warp-drive: speedup %f; sleeping for %d ms", timingSpeedup, sleepTime));
+                        sleepTime = (int)(sleepTime / timingSpeedup);
+                        appLog.info(String.Format("Warp-drive: speedup {0:F}; sleeping for {1} ms", timingSpeedup, sleepTime));
                     }
 
-                    Thread.sleep(sleepTime);
+                    Thread.Sleep(sleepTime);
                 }
 
                 while (maxQueued >= 0 && ((ThreadPoolExecutor) insertExecutor).getQueue().size() > maxQueued) {
-                    appLog.info(String.format("Queue size %d is over limit %d - sleeping", ((ThreadPoolExecutor) insertExecutor).getQueue().size(), maxQueued));
-                    Thread.sleep(1 * Millis / (((ThreadPoolExecutor) insertExecutor).getQueue().size() > 1 ? 2 : 20));
+                    appLog.info(String.Format("Queue size {0} is over limit {1} - sleeping", ((ThreadPoolExecutor) insertExecutor).getQueue().size(), maxQueued));
+                    Thread.Sleep(1 * Millis / (((ThreadPoolExecutor) insertExecutor).getQueue().size() > 1 ? 2 : 20));
                 }
 
-                appLog.info(String.format("Sleeping done. Queue size=%d", ((ThreadPoolExecutor) insertExecutor).getQueue().size()));
+                appLog.info(String.Format("Sleeping done. Queue size={0}", ((ThreadPoolExecutor) insertExecutor).getQueue().size()));
 
             }
 
-            wallTime = System.currentTimeMillis() - start;
+            wallTime = Environment.TickCount - start;
 
-            appLog.info(String.format("Processed %,d events containing %,d records in %.2f secs"
-                            + "\n\tThroughput:\t%.2f events/sec at %.2f ips;"
-                            + "\n\tSpeed:\t\t%,d inserts in %.2f secs = %.2f ips"
-                            + "\n\tQueries:\t%,d queries got %,d records in %.2f secs at %.2f qps",
-                    totalEvents, totalInserts.get(), (wallTime / Millis2Seconds), (Millis2Seconds * totalEvents / wallTime), (Millis2Seconds * totalInserts.get() / wallTime),
-                    totalInserts.get(), (totalInsertTime.get() / Nano2Seconds), (Nano2Seconds * totalInserts.get() / totalInsertTime.get()),
-                    totalQueries.get(), totalQueryRecords.get(), (totalQueryTime.get() / Nano2Seconds), (Nano2Seconds * totalQueries.get() / totalQueryTime.get())));
+            appLog.info(String.Format("Processed {0:N} events containing {1:N} records in {2:F2} secs"
+                            + "\n\tThroughput:\t{3:F2} events/sec at {4:F2} ips;"
+                            + "\n\tSpeed:\t\t{5:N} inserts in {6:F2} secs = {7:F2} ips"
+                            + "\n\tQueries:\t{8:N} queries got {9:N} records in {10:F2} secs at {11:F2} qps",
+                    new object[] {totalEvents, totalInserts, (wallTime / Millis2Seconds), (Millis2Seconds * totalEvents / wallTime), (Millis2Seconds * totalInserts / wallTime),
+                    totalInserts, (totalInsertTime / Millis2Seconds), (Millis2Seconds * totalInserts / totalInsertTime),
+                    totalQueries, totalQueryRecords, (totalQueryTime / Millis2Seconds), (Millis2Seconds * totalQueries / totalQueryTime)}));
 
 
-        } while (System.currentTimeMillis() < endTime);
+        } while (Environment.TickCount < endTime);
     }
 
     public void close()
     {
-        try {
-            insertExecutor.shutdownNow();
-            insertExecutor.awaitTermination(10, TimeUnit.SECONDS);
+        insertExecutor.shutdownNow();
+        insertExecutor.awaitTermination(10, TimeUnit.SECONDS);
 
-            queryExecutor.shutdownNow();
-            queryExecutor.awaitTermination(10, TimeUnit.SECONDS);
-        }
-        catch (InterruptedException e) {
-            System.out.println("Interrupted while waiting for shutdown - exiting");
-        }
-
-        appLog.info(String.format("Exiting with %d items remaining in the queue.\n\tProcessed %,d events containing %,d records in %.2f secs"
-                        + "\n\tThroughput:\t%.2f events/sec at %.2f ips;"
-                        + "\n\tSpeed:\t\t%,d inserts in %.2f secs = %.2f ips"
-                        + "\n\tQueries:\t%,d queries got %,d records in %.2f secs at %.2f qps",
-                ((ThreadPoolExecutor) insertExecutor).getQueue().size(),
-                totalEvents, totalInserts.get(), (wallTime / Millis2Seconds), (Millis2Seconds * totalEvents / wallTime), (Millis2Seconds * totalInserts.get() / wallTime),
-                totalInserts.get(), (totalInsertTime.get() / Nano2Seconds), (Nano2Seconds * totalInserts.get() / totalInsertTime.get()),
-                totalQueries.get(), totalQueryRecords.get(), (totalQueryTime.get() / Nano2Seconds), (Nano2Seconds * totalQueries.get() / totalQueryTime.get())));
+        queryExecutor.shutdownNow();
+        queryExecutor.awaitTermination(10, TimeUnit.SECONDS);
+    
+        appLog.info(String.Format("Exiting with {0} items remaining in the queue.\n\tProcessed {1:N} events containing {2:N} records in {3:F2} secs"
+                        + "\n\tThroughput:\t{4:F2} events/sec at {5:F2} ips;"
+                        + "\n\tSpeed:\t\t{6:N} inserts in {7:F2} secs = {8:F2} ips"
+                        + "\n\tQueries:\t{9:N} queries got {10:N} records in {11:F2} secs at {12:F2} qps",
+                new object[] {((ThreadPoolExecutor) insertExecutor).getQueue().size(),
+                totalEvents, totalInserts, (wallTime / Millis2Seconds), (Millis2Seconds * totalEvents / wallTime), (Millis2Seconds * totalInserts / wallTime),
+                totalInserts, (totalInsertTime / Millis2Seconds), (Millis2Seconds * totalInserts / totalInsertTime),
+                totalQueries, totalQueryRecords, (totalQueryTime / Millis2Seconds), (Millis2Seconds * totalQueries / totalQueryTime)}));
 
         //appLog.info(String.format("Exiting with %d items remaining in the queue.\n\tProcessed %,d events containing %,d records in %.2f secs\n\tThroughput:\t%.2f events/sec at %.2f ips;\n\tSpeed:\t\t%,d inserts in %.2f secs = %.2f ips",
         //        ((ThreadPoolExecutor) insertExecutor).getQueue().size(),
@@ -394,175 +384,226 @@ namespace NuoTest
     }
 
     protected void initializeDatabase() {
-        String script = appProperties.getProperty(DB_INIT_SQL);
-        if (script == null) appLog.info("Somehow script is NULL");
+        String script;
+        if (!appProperties.TryGetValue(DB_INIT_SQL, out script))
+            appLog.info("Somehow script is NULL");
 
-        appLog.info(String.format("running init sql (length: %d): %s", script.length(), script));
-        try (SqlSession session = new SqlSession(SqlSession.Mode.AUTO_COMMIT)) {
+        appLog.info(String.Format("running init sql (length: {0}): {1}", script.Length, script));
+        using (SqlSession session = new SqlSession(SqlSession.Mode.AUTO_COMMIT)) {
             session.execute(script);
         }
     }
 
-    protected void parseCommandLine(String[] args, Properties props) {
+    protected void parseCommandLine(String[] args, Dictionary<String, String> props) {
 
-        for (String param : args) {
-            String[] keyVal = param.split("=");
-            if (keyVal.length == 2) {
-                props.setProperty(keyVal[0].trim().replaceAll("-", ""), keyVal[1]);
+        foreach (String param in args) {
+            String[] keyVal = param.Split(new char[] {'='});
+            if (keyVal.Length == 2) {
+                props.Add(keyVal[0].Trim().Replace("-", ""), keyVal[1]);
             }
             else {
-                props.setProperty(param.trim().replaceAll("-", ""), "true");
+                props.Add(param.Trim().Replace("-", ""), "true");
             }
         }
     }
 
-    protected void loadProperties(Properties props, String key)
-        throws MalformedURLException, IOException
+    protected void loadProperties(Dictionary<String, String> props, String key)
     {
-        assert key != null && key.length() > 0;
+        if (key == null || key.Length == 0)
+            throw new ArgumentException("Null or empty key", "key");
 
-        String path = appProperties.getProperty(key);
-        if (path == null || path.length() == 0) {
-            appLog.info(String.format("loadProperties: key %s not in app properties", key));
+        String path;
+        if (!appProperties.TryGetValue(key, out path) || path.Length == 0) {
+            appLog.info(String.Format("loadProperties: key {0} not in app properties", key));
             return;
         }
 
-        appLog.info(String.format("loading properties: %s from %s", key, path));
+        appLog.info(String.Format("loading properties: {0} from {1}", key, path));
 
-        InputStream is = null;
-
-        if (path.startsWith("classpath://")) {
-            is = getClass().getClassLoader().getResourceAsStream(path.substring("classpath://".length()));
-            appLog.info(String.format("loading resource: %s", path.substring("classpath://".length())));
+        Stream stream;
+        if (path.StartsWith("classpath://")) {
+            stream = Assembly.GetExecutingAssembly().GetManifestResourceStream(path.Substring("classpath://".Length));
+            appLog.info(String.Format("loading resource: {0}", path.Substring("classpath://".Length)));
         } else {
-            is = new URL(path).openStream();
+            stream = new FileStream(path, FileMode.Open);
         }
+        
+        try
+        {
+            using (StreamReader reader = new StreamReader(stream))
+            {
+                string line;
+                while ((line = reader.ReadLine()) != null)
+                {
+                    if ((!String.IsNullOrEmpty(line)) &&
+                        (!line.StartsWith(";")) &&
+                        (!line.StartsWith("#")) &&
+                        (!line.StartsWith("'")) &&
+                        (line.Contains('=')))
+                    {
+                        int index = line.IndexOf('=');
+                        String k = line.Substring(0, index).Trim();
+                        String v = line.Substring(index + 1).Trim();
 
-        if (is == null) return;
+                        if ((v.StartsWith("\"") && v.EndsWith("\"")) ||
+                            (v.StartsWith("'") && v.EndsWith("'")))
+                        {
+                            v = v.Substring(1, v.Length - 2);
+                        }
 
-        try { props.load(is); }
-        finally { is.close(); }
-
+                        try
+                        {
+                            props.Add(k, v);
+                        }
+                        catch 
+                        {
+                            //ignore duplicates
+                        }
+                    }
+                }
+            }       
+        }
+        finally
+        {
+            stream.Close();
+        }
+ 
         resolveReferences(props);
 
-        appLog.info(String.format("Loaded properties %s: %s", key, props));
+        appLog.info(String.Format("Loaded properties {0}: {1}", key, props));
     }
 
-    protected void resolveReferences(Properties props) {
-        Pattern var = Pattern.compile("\\$\\{[^\\}]+\\}");
-        StringBuffer newVar = new StringBuffer();
+    protected void resolveReferences(Dictionary<String, String> props) {
+        Regex var = new Regex("\\$\\{[^\\}]+\\}");
+        StringBuilder newVar = new StringBuilder();
 
-        for (Map.Entry<Object, Object> entry : props.entrySet()) {
-            Matcher match = var.matcher(entry.getValue().toString());
-            while (match.find()) {
+        Dictionary<String,String> modified = new Dictionary<string,string>();
+        Dictionary<String,String>.Enumerator iter = props.GetEnumerator();
+        while (iter.MoveNext())
+        {
+            MatchCollection match = var.Matches(iter.Current.Value);
+            int lastPos = 0;
+            foreach (Match m in match)
+            {
                 //appLog.info(String.format("match.group=%s", match.group()));
-                String val = props.getProperty(match.group().replaceAll("\\$|\\{|\\}", ""));
-                appLog.info(String.format("resolving var reference %s to %s", match.group(), val));
-
-                if (val != null) match.appendReplacement(newVar, val);
+                String val;
+                if (props.TryGetValue(m.Value.Replace("$","").Replace("{", "").Replace("}", ""), out val))
+                {
+                    newVar.Append(iter.Current.Value.Substring(lastPos, m.Index));
+                    newVar.Append(val);
+                }
+                lastPos = m.Index + m.Length;
+                appLog.info(String.Format("resolving var reference {0} to {1}", m.Value, val));
             }
 
-            if (newVar.length() > 0) {
-                appLog.info(String.format("Replacing updated property %s=%s", entry.getKey(), newVar));
-                match.appendTail(newVar);
-                entry.setValue(newVar.toString());
-                newVar.setLength(0);
+            if (newVar.Length > 0) {
+                appLog.info(String.Format("Replacing updated property {0}={1}", iter.Current.Key, newVar));
+                newVar.Append(iter.Current.Value.Substring(lastPos));
+                modified.Add(iter.Current.Key, newVar.ToString());
+                newVar.Clear();
             }
         }
+        foreach (String k in modified.Keys)
+            props[k] = modified[k];
     }
 
     protected void scheduleViewTask(long eventId) {
         if (minViewAfterInsert <= 0 || maxViewAfterInsert <= 0) return;
 
-        long delay = (minViewAfterInsert + random.nextInt(maxViewAfterInsert - minViewAfterInsert));
+        long delay = (minViewAfterInsert + random.Next(maxViewAfterInsert - minViewAfterInsert));
 
         // implement warp-drive...
-        if (timingSpeedup > 1) delay /= timingSpeedup;
+        if (timingSpeedup > 1) delay = (long)(delay / timingSpeedup);
 
-        queryExecutor.schedule(new EventViewTask(eventId), (long) delay, TimeUnit.SECONDS);
+        queryExecutor.schedule(new EventViewTask(this, eventId), (long) delay, TimeUnit.SECONDS);
 
-        appLog.info(String.format("Scheduled EventViewTask for now +%d", delay));
+        appLog.info(String.Format("Scheduled EventViewTask for now +{0}", delay));
     }
 
-    class EventGenerator implements Runnable {
+    private class EventGenerator : Runnable 
+    {
 
-        private final long unique;
-        private Date dateStamp = new Date();
+        private readonly long unique;
+        private readonly Controller ctrl;
+        private DateTime dateStamp = new DateTime();
 
-        EventGenerator(long unique) {
+        EventGenerator(Controller ctrl, long unique) {
             this.unique = unique;
+            this.ctrl = ctrl;
         }
 
         public void run() {
 
-            long start = System.nanoTime();
+            long start = Environment.TickCount;
 
             long ownerId;
             long eventId;
             long groupId;
 
-            try (SqlSession session = new SqlSession(SqlSession.Mode.AUTO_COMMIT)) {
+            using (SqlSession session = new SqlSession(SqlSession.Mode.AUTO_COMMIT)) {
                 ownerId = generateOwner();
-                System.out.println("\n------------------------------------------------");
-                report("Owner", 1, System.nanoTime() - start);
+                Console.Out.WriteLine("\n------------------------------------------------");
+                report("Owner", 1, Environment.TickCount - start);
 
                 eventId = generateEvent(ownerId);
             }
 
-            int groupCount = minGroups + random.nextInt(maxGroups - minGroups);
-            appLog.info(String.format("Creating %d groups", groupCount));
+            int groupCount = ctrl.minGroups + Random.Next(ctrl.maxGroups - ctrl.minGroups);
+            appLog.info(String.Format("Creating {0} groups", groupCount));
 
             int total = 2 + groupCount;
 
-            Map<String, Data> dataRows = new HashMap<String, Data>(maxData);
+            Dictionary<String, Data> dataRows = new Dictionary<String, Data>(maxData);
 
             // data records per group
-            int dataCount = (minData + random.nextInt(maxData - minData)) / groupCount;
-            appLog.info(String.format("Creating %d Data records @ %d records per group", dataCount * groupCount, dataCount));
+            int dataCount = (ctrl.minData + Random.Next(ctrl.maxData - ctrl.minData)) / groupCount;
+            appLog.info(String.Format("Creating {0} Data records @ {1} records per group", dataCount * groupCount, dataCount));
 
             for (int gx = 0; gx < groupCount; gx++) {
-                try (SqlSession session = new SqlSession(SqlSession.Mode.AUTO_COMMIT)) {
+                using (SqlSession session = new SqlSession(SqlSession.Mode.AUTO_COMMIT)) {
                     groupId = generateGroup(eventId, gx);
                 }
 
                 total += dataCount;
 
-                dataRows.clear();
+                dataRows.Clear();
                 for (int dx = 0; dx < dataCount; dx++) {
                     Data data = generateData(groupId, dx);
-                    dataRows.put(data.getInstanceUID(), data);
+                    dataRows.Add(data.getInstanceUID(), data);
                 }
 
-                try (SqlSession session = new SqlSession(SqlSession.Mode.AUTO_COMMIT)) {
-                    long uniqueRows = dataRepository.checkUniqueness(dataRows);
+                using (SqlSession session = new SqlSession(SqlSession.Mode.AUTO_COMMIT)) {
+                    long uniqueRows = ctrl.dataRepository.checkUniqueness(dataRows);
 
-                    appLog.info(String.format("%d rows out of %d new rows are unique", uniqueRows, dataCount));
-                    groupRepository.update(groupId, "dataCount", uniqueRows);
+                    appLog.info(String.Format("{0} rows out of {1} new rows are unique", uniqueRows, dataCount));
+                    ctrl.groupRepository.update(groupId, "dataCount", uniqueRows);
                 }
 
-                long dataStart = System.nanoTime();
+                long dataStart = Environment.TickCount;
                 int count = 0;
-                try (SqlSession session = new SqlSession(bulkCommitMode)) {
-                    for (Data data : dataRows.values()) {
-                        dataRepository.persist(data);
-                        count++;
+                try {
+                    using (SqlSession session = new SqlSession(ctrl.bulkCommitMode)) {
+                        foreach (Data data in dataRows.Values) {
+                            ctrl.dataRepository.persist(data);
+                            count++;
+                        }
+                        appLog.info(String.Format("inserting {0} data rows", count));
                     }
-                    appLog.info(String.format("inserting %d data rows", count));
                 } catch (Exception e) {
-                    appLog.info(String.format("Error inserting data row %s", e.toString()));
+                    appLog.info(String.Format("Error inserting data row {0}", e.ToString()));
                 }
 
-                report("Data Group", dataCount, System.nanoTime() - dataStart);
+                report("Data Group", dataCount, Environment.TickCount - dataStart);
             }
 
-            long duration = System.nanoTime() - start;
+            long duration = Environment.TickCount - start;
             report("All Data", total, duration);
 
             //totalInserts += total;
             //totalInsertTime += duration;
 
-            totalInserts.addAndGet(total);
-            totalInsertTime.addAndGet(duration);
+            Interlocked.Add(ctrl.totalInserts, total);
+            Interlocked.Add(ctrl.totalInsertTime, duration);
 
             scheduleViewTask(eventId);
         }
@@ -570,93 +611,97 @@ namespace NuoTest
         protected long generateOwner() {
 
             Owner owner = new Owner();
-            owner.setName(String.format("Owner-%d", unique));
+            owner.setName(String.format("Owner-{0}", unique));
             owner.setRegion(unique % 2 == 0 ? "Region_A" : "Region_B");
 
-            return ownerRepository.persist(owner);
+            return ctrl.ownerRepository.persist(owner);
         }
 
         protected long generateEvent(long ownerId) {
 
-            Event event = new Event();
-            event.setName(String.format("Event-%d", unique));
-            event.setOwner(ownerId);
-            event.setDate(dateStamp);
-            event.setRegion(unique % 2 == 0 ? "Region_A" : "Region_B");
+            Event @event = new Event();
+            @event.setName(String.Format("Event-{0}", unique));
+            @event.setOwner(ownerId);
+            @event.setDate(dateStamp);
+            @event.setRegion(unique % 2 == 0 ? "Region_A" : "Region_B");
 
-            return eventRepository.persist(event);
+            return ctrl.eventRepository.persist(@event);
         }
 
         protected long generateGroup(long eventId, int index) {
 
             Group group = new Group();
             group.setEvent(eventId);
-            group.setName(String.format("Group-%d-%d", unique, index));
+            group.setName(String.Format("Group-{0}-{1}", unique, index));
             group.setDataCount(0);
             group.setDate(dateStamp);
             group.setDescription("Test data generated by JNuoTest");
             group.setRegion(unique % 2 == 0 ? "Region_A" : "Region_B");
             group.setWeek(unique / 35000);
 
-            return groupRepository.persist(group);
+            return ctrl.groupRepository.persist(group);
         }
 
         protected Data generateData(long groupId, int index) {
-            String instanceUID = String.format("image-%d-%d-%d", unique, groupId, index);
+            String instanceUID = String.Format("image-{0}-{1}-{2}", unique, groupId, index);
 
             Data data = new Data();
             data.setGroup(groupId);
             data.setInstanceUID(instanceUID);
-            data.setName(String.format("Data-%d-%d-%d", unique, groupId, index));
+            data.setName(String.Format("Data-{0}-{1}-{2}", unique, groupId, index));
             data.setDescription("Test data generated by JNuoTest");
-            data.setPath(String.format("file:///remote/storage/%s.bin", instanceUID));
-            data.setRegionWeek(unique % 2 == 0 ? "Region_A" : "Region_B-" + String.valueOf(unique / 35000));
+            data.setPath(String.Format("file:///remote/storage/{0}.bin", instanceUID));
+            data.setRegionWeek(unique % 2 == 0 ? "Region_A" : String.Format("Region_B-{0}", (unique / 35000)));
 
             return data;    // don't persist individually - we may be persisting in a batch
         }
 
         private void report(String name, int count, long duration) {
-            double rate = (count > 0 && duration > 0 ? Nano2Seconds * count / duration : 0);
-            appLog.info(String.format("Run %d; generated %s (%,d records); duration=%.2f ms; rate=%.2f", unique, name, count, 1d / Nano2Millis * duration, rate));
+            double rate = (count > 0 && duration > 0 ? Millis2Seconds * count / duration : 0);
+            appLog.info(String.Format("Run {0}; generated {1} ({2:N} records); duration={3:F2} ms; rate={4:F2}", new object[] {unique, name, count, duration, rate} ));
         }
     }
 
-    class EventViewTask implements Runnable {
-        private final long eventId;
+    private class EventViewTask : Runnable 
+    {
+        private readonly long eventId;
+        private readonly Controller ctrl;
 
-        public EventViewTask(long eventId) {
+        public EventViewTask(Controller ctrl, long eventId) {
             this.eventId = eventId;
+            this.ctrl = ctrl;
         }
 
-        @Override
         public void run() {
 
             //long x = totalInserts;
 
-            viewLog.info(String.format("Running view query for event %d", eventId));
+            Controller.viewLog.info(String.Format("Running view query for event {0}", eventId));
 
-            try (SqlSession session = new SqlSession(SqlSession.Mode.READ_ONLY)) {
+            try
+            {
+                using (SqlSession session = new SqlSession(SqlSession.Mode.READ_ONLY)) {
 
-                long start = System.nanoTime();
-                EventDetails details = eventRepository.getDetails(eventId);
-                long duration = System.nanoTime() - start;
+                    long start = Environment.TickCount;
+                    EventDetails details = ctrl.eventRepository.getDetails(eventId);
+                    long duration = Environment.TickCount - start;
 
-                totalQueries.incrementAndGet();
-                totalQueryRecords.addAndGet(details.getData().size());
-                totalQueryTime.addAndGet(duration);
+                    Interlocked.Increment(ctrl.totalQueries);
+                    Interlocked.Add(ctrl.totalQueryRecords, details.getData().size());
+                    Interlocked.Add(ctrl.totalQueryTime, duration);
 
-                appLog.info(String.format("Event viewed. Query response time= %.2f secs; %,d Data objects attached in %d groups.",
-                        (duration / Nano2Seconds), details.getData().size(), details.getGroups().size()));
-
+                    Controller.appLog.info(String.Format("Event viewed. Query response time= {0:F2} secs; {1:N} Data objects attached in {2} groups.",
+                            (duration / Controller.Millis2Seconds), details.getData().size(), details.getGroups().size()));
+                }
             } catch (PersistenceException e) {
-                viewLog.info(String.format("Error retrieving Event: %s", e.toString()));
+                Controller.viewLog.info(String.Format("Error retrieving Event: {0}", e.ToString()));
                 e.printStackTrace(System.out);
             }
 
 
-            if (queryBackoff > 0 && ((ThreadPoolExecutor) insertExecutor).getQueue().size() > maxQueued) {
-                appLog.info(String.format("(query) Queue size > maxQueued (%d); sleeping for %d ms...", maxQueued, queryBackoff));
-                try { Thread.sleep(queryBackoff); } catch (InterruptedException e) {}
+            if (ctrl.queryBackoff > 0 && ((ThreadPoolExecutor) ctrl.insertExecutor).getQueue().size() > ctrl.maxQueued) {
+                Controller.appLog.info(String.Format("(query) Queue size > maxQueued ({0}); sleeping for {1} ms...", ctrl.maxQueued, ctrl.queryBackoff));
+                Thread.Sleep(ctrl.queryBackoff);
             }
         }
     }
