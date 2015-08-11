@@ -9,7 +9,7 @@ using System.Threading.Tasks;
 namespace NuoTest
 {
 
-	internal class Data : Table
+	internal class Data : Entity
 	{
 		internal long GroupId { get; set; }
 		internal String InstanceUID { get; set; }
@@ -23,6 +23,10 @@ namespace NuoTest
 		{
             this.Name = name;
         }
+
+        public Data()
+            : base()
+        { }
 
 	}
 }

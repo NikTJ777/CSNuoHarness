@@ -19,5 +19,8 @@ namespace NuoTest
 		internal Owner(long id, String name) : base(id)
         { this.Name = name; }
 
+        public Owner()
+            : base()
+        { }
 	}
 }

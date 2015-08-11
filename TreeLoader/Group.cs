@@ -23,5 +23,9 @@ namespace NuoTest
 		{
             this.Name = name;
         }
+
+        public Group()
+            : base()
+        { }
 	}
 }
