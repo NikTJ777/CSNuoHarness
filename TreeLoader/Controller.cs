@@ -124,11 +124,16 @@ namespace NuoTest
     public void configure(String[] args)
     {
         // create 2 levels of file properties (application.properties; and database.properties)
-        Dictionary<String, String> prop = new Dictionary<String, String>(defaultProperties);
-        fileProperties = new Dictionary<String, String>(prop);
+        fileProperties = new Dictionary<String, String>(defaultProperties);
 
         // create app properties, using fileProperties as default values
         appProperties = new Dictionary<String, String>(fileProperties);
+
+        // load properties from application.properties file into first (lower-priority) level of fileProperties
+        loadProperties(appProperties, PROPERTIES_PATH);
+
+        // now load database properties into second (higher-priority) level of fileProperties
+        loadProperties(appProperties, DB_PROPERTIES_PATH);
 
         // parse the command line into app properties, as command line overrides all others
         parseCommandLine(args, appProperties);
@@ -148,12 +153,6 @@ namespace NuoTest
             Environment.Exit(0);
         }
 
-        // load properties from application.properties file into first (lower-priority) level of fileProperties
-        loadProperties(prop, PROPERTIES_PATH);
-
-        // now load database properties into second (higher-priority) level of fileProperties
-        loadProperties(fileProperties, DB_PROPERTIES_PATH);
-
         appLog.info("command-line properties: {0}",  string.Join(";", appProperties));
 
         StringBuilder builder = new StringBuilder(1024);
@@ -161,7 +160,7 @@ namespace NuoTest
         foreach (String key in keys) {
             builder.AppendFormat("{0} = {1}\n", key, appProperties[key]);
         }
-        appLog.info(builder.ToString() + "**********************************************************\n");
+        appLog.info("{0}**********************************************************\n", builder.ToString());
 
         runTime = Int32.Parse(appProperties[RUN_TIME]) * Millis;
         averageRate = Single.Parse(appProperties[AVERAGE_RATE]);
@@ -201,7 +200,7 @@ namespace NuoTest
 
         foreach (String key in appProperties.Keys) {
             if (key.StartsWith(dbPropertyPrefix)) {
-                dbProperties.Add(key.Substring(dbPropertyPrefix.Length), appProperties[key]);
+                dbProperties[key.Substring(dbPropertyPrefix.Length)] = appProperties[key];
             }
         }
 
@@ -230,7 +229,8 @@ namespace NuoTest
         insertExecutor = new ThreadPoolExecutor<EventGenerator>(insertThreads);
         queryExecutor = new ThreadPoolExecutor<EventViewTask>(queryThreads);
 
-        if ("true".Equals(appProperties["check.config"], StringComparison.InvariantCultureIgnoreCase)) {
+        string checkOnly;
+        if (appProperties.TryGetValue("check.config", out checkOnly) && checkOnly.Equals("true", StringComparison.InvariantCultureIgnoreCase)) {
             Console.Out.WriteLine("CheckConfig called - nothing to do; exiting.");
             Environment.Exit(0);
         }
@@ -426,10 +426,10 @@ namespace NuoTest
         foreach (String param in args) {
             String[] keyVal = param.Split(new char[] {'='});
             if (keyVal.Length == 2) {
-                props.Add(keyVal[0].Trim().Replace("-", ""), keyVal[1]);
+                props[keyVal[0].Trim().Replace("-", "")] = keyVal[1];
             }
             else {
-                props.Add(param.Trim().Replace("-", ""), "true");
+                props[param.Trim().Replace("-", "")] = "true";
             }
         }
     }
@@ -469,6 +469,16 @@ namespace NuoTest
                             (!line.StartsWith("'")) &&
                             (line.Contains('=')))
                         {
+                            // if the line ends with a \, concatenate it with the next line
+                            while (line.EndsWith("\\"))
+                            {
+                                string nextLine = reader.ReadLine();
+                                if (nextLine == null)
+                                    break;
+                                line = line.TrimEnd(new char[] { '\\' }) + nextLine;
+                            }
+                            // convert explicit \n
+                            line = line.Replace("\\n", "\n");
                             int index = line.IndexOf('=');
                             String k = line.Substring(0, index).Trim();
                             String v = line.Substring(index + 1).Trim();
@@ -481,8 +491,8 @@ namespace NuoTest
 
                             try
                             {
-                                localKeys.Add(k, v);
-                                props.Add(k, v);
+                                localKeys[k] = v;
+                                props[k] = v;
                             }
                             catch
                             {
@@ -518,7 +528,7 @@ namespace NuoTest
                 String val;
                 if (props.TryGetValue(m.Value.Replace("$","").Replace("{", "").Replace("}", ""), out val))
                 {
-                    newVar.Append(iter.Current.Value.Substring(lastPos, m.Index));
+                    newVar.Append(iter.Current.Value.Substring(lastPos, m.Index-lastPos));
                     newVar.Append(val);
                 }
                 lastPos = m.Index + m.Length;
@@ -528,7 +538,7 @@ namespace NuoTest
             if (newVar.Length > 0) {
                 appLog.info("Replacing updated property {0}={1}", iter.Current.Key, newVar);
                 newVar.Append(iter.Current.Value.Substring(lastPos));
-                modified.Add(iter.Current.Key, newVar.ToString());
+                modified[iter.Current.Key] = newVar.ToString();
                 newVar.Clear();
             }
         }

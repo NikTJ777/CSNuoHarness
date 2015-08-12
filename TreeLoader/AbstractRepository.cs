@@ -116,6 +116,7 @@ namespace NuoTest
             SqlSession session = SqlSession.getCurrent();
             using (DbCommand update = session.getStatement(sql)) {
                 try {
+                    update.Prepare();
                     setParams(update, columns, values);
                     session.update(update);
                 } catch (Exception e) {

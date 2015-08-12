@@ -269,7 +269,7 @@ namespace NuoTest
 
         public long update(DbCommand update)
         {
-            return (long)update.ExecuteScalar();
+            return (long)update.ExecuteNonQuery();
         }
 
         protected DbConnection Connection()
@@ -316,6 +316,7 @@ namespace NuoTest
                 try
                 {
                     NuoDbBulkLoader loader = new NuoDbBulkLoader(updateConnectionString);
+                    loader.DestinationTableName = batch[0].Table.TableName;
                     loader.WriteToServer(batch.ToArray());
                 }
                 catch (Exception e) { }
