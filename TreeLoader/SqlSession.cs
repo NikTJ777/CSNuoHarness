@@ -108,6 +108,11 @@ namespace NuoTest
             this.mode = mode;
             commitMode = (mode == Mode.AUTO_COMMIT || mode == Mode.READ_ONLY ? Mode.AUTO_COMMIT : Mode.TRANSACTIONAL);
 
+            if (mode == Mode.BATCH && batch == null)
+            {
+                batch = new List<DataRow>();
+            }
+
             SqlSession session = current.Value;
             if (session != null)
             {
@@ -156,7 +161,7 @@ namespace NuoTest
             }
         }
 
-        public override void Dispose()
+        public void Dispose()
         {
             closeStatements();
             closeConnection();
@@ -185,9 +190,9 @@ namespace NuoTest
             //int returnMode = (mode == Mode.AUTO_COMMIT ? Statement.RETURN_GENERATED_KEYS : Statement.NO_GENERATED_KEYS);
             //int returnMode = Statement.RETURN_GENERATED_KEYS;
             //DbCommand ps = connection().prepareStatement(sql);
-            DbCommand ps = connection().CreateCommand();
-            ps.CommandText = sql;
-            statements.Add(ps);
+            DbCommand cmd = Connection().CreateCommand();
+            cmd.CommandText = sql;
+            statements.Add(cmd);
             //statements.put(sql, ps);
             //} else {
             //    ps.clearParameters();
@@ -195,7 +200,7 @@ namespace NuoTest
 
             //batch = (mode == Mode.BATCH ? ps : null);
 
-            return ps;
+            return cmd;
         }
 
         public void execute(String script)
@@ -204,9 +209,9 @@ namespace NuoTest
 
             String[] lines = script.Split("@".ToCharArray());
 
-            using (DbTransaction transaction = connection().BeginTransaction())
+            using (DbTransaction transaction = Connection().BeginTransaction())
             {
-                using (DbCommand command = connection().CreateCommand())
+                using (DbCommand command = Connection().CreateCommand())
                 {
                     foreach (String line in lines)
                     {
@@ -295,7 +300,7 @@ namespace NuoTest
                 }
                  */
 
-                connection.ConnectionString = connectionString;
+                //connection.ConnectionString = connectionString;
                 connection.Open();
             }
 
@@ -310,7 +315,7 @@ namespace NuoTest
             {
                 try
                 {
-                    NuoDbBulkLoader loader = new NuoDbBulkLoader(connectionString);
+                    NuoDbBulkLoader loader = new NuoDbBulkLoader(updateConnectionString);
                     loader.WriteToServer(batch.ToArray());
                 }
                 catch (Exception e) { }
@@ -333,9 +338,9 @@ namespace NuoTest
         {
             if (connection != null)
             {
-                if (commitMode != Mode.AUTO_COMMIT)
+                if (transaction != null && commitMode != Mode.AUTO_COMMIT)
                 {
-                    try { connection.Commit(); }
+                    try { transaction.Commit(); }
                     catch (/*SQL*/Exception e)
                     {
                         throw new PersistenceException(e, "Error commiting connection");

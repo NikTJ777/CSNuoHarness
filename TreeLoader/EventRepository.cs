@@ -14,7 +14,7 @@ namespace NuoTest
         private readonly GroupRepository groupRepository;
         private readonly DataRepository dataRepository;
 
-        internal static Logger log = Logger.getLogger("EventRepository");
+        //internal static Logger log = Logger.getLogger("EventRepository");
 
         public EventRepository(OwnerRepository ownerRepository, GroupRepository groupRepository, DataRepository dataRepository)
             : base("NuoTest.T_EVENT", "ownerId", "name", "description", "date", "region")

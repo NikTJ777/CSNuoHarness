@@ -70,10 +70,10 @@ namespace NuoTest
         }
 
 
-        public override long persist(T entity)
+        public long persist(T entity)
         {
             // do not persist an already persistent object
-            if (entity.persistent) {
+            if (entity.Persistent) {
                 throw new PersistenceException("Attempt to persist already persistent object {0}", entity.ToString());
             }
 
@@ -125,7 +125,7 @@ namespace NuoTest
         }
 
 
-        public override List<T> findAllBy(String column, params Object[] args)
+        public List<T> findAllBy(String column, params Object[] args)
         {
             List<T> result = new List<T>(1024);
             SqlSession session = SqlSession.getCurrent();
@@ -143,7 +143,7 @@ namespace NuoTest
             }
         }
 
-        public override String getValue(String column, String criteria)
+        public String getValue(String column, String criteria)
         {
             SqlSession session = SqlSession.getCurrent();
 
@@ -166,6 +166,8 @@ namespace NuoTest
 
             return SqlSession.getCurrent().getStatement(sql.ToString()).ExecuteReader();
         }
+
+        public abstract void init();
 
         protected abstract T mapIn(DbDataReader reader);
 

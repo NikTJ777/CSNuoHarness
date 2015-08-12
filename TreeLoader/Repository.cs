@@ -8,16 +8,16 @@ namespace NuoTest
 {
     interface Repository<T> where T : Entity
     {
-        public void init();
+        void init();
 
-        public T findById(long id);
+        T findById(long id);
 
-        public List<T> findAllBy(String column, params Object[] values);
+        List<T> findAllBy(String column, params Object[] values);
 
-        public String getValue(String column, String criteria);
+        String getValue(String column, String criteria);
 
-        public long persist(T entity);
+        long persist(T entity);
 
-        public void update(long id, String columns, params Object[] values); 
+        void update(long id, String columns, params Object[] values); 
     }
 }

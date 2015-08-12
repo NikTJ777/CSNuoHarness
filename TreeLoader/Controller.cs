@@ -10,16 +10,18 @@ using System.Threading.Tasks;
 
 namespace NuoTest
 {
-    class Controller
+    class Controller : IDisposable
     {
     internal OwnerRepository ownerRepository;
     internal EventRepository eventRepository;
     internal GroupRepository groupRepository;
     internal DataRepository dataRepository;
 
-    internal ExecutorService insertExecutor;
-    internal ScheduledExecutorService queryExecutor;
+    //internal ExecutorService insertExecutor;
+    //internal ScheduledExecutorService queryExecutor;
 
+    internal ThreadPoolExecutor<EventGenerator> insertExecutor;
+    internal ThreadPoolExecutor<EventViewTask> queryExecutor;
 
     Dictionary<String, String> fileProperties;
     Dictionary<String, String> appProperties;
@@ -37,6 +39,7 @@ namespace NuoTest
 
     internal SqlSession.Mode bulkCommitMode;
 
+    internal Int64 totalScheduled = 0;
     internal Int64 totalInserts = 0;
     internal Int64 totalInsertTime = 0;
 
@@ -221,8 +224,11 @@ namespace NuoTest
         if (!Enum.TryParse<SqlSession.Mode>(appProperties[BULK_COMMIT_MODE], out bulkCommitMode))
             bulkCommitMode = SqlSession.Mode.BATCH;
 
-        insertExecutor = Executors.newFixedThreadPool(insertThreads);
-        queryExecutor= Executors.newScheduledThreadPool(queryThreads);
+        //insertExecutor = Executors.newFixedThreadPool(insertThreads);
+        //queryExecutor= Executors.newScheduledThreadPool(queryThreads);
+
+        insertExecutor = new ThreadPoolExecutor<EventGenerator>(insertThreads);
+        queryExecutor = new ThreadPoolExecutor<EventViewTask>(queryThreads);
 
         if ("true".Equals(appProperties["check.config"], StringComparison.InvariantCultureIgnoreCase)) {
             Console.Out.WriteLine("CheckConfig called - nothing to do; exiting.");
@@ -278,7 +284,10 @@ namespace NuoTest
             long eventId = 1;
 
             while (Environment.TickCount < endTime) {
-                queryExecutor.schedule(new EventViewTask(this, eventId++), 2, TimeUnit.MILLISECONDS);
+                EventViewTask viewTask = new EventViewTask(this, eventId++);
+                //queryExecutor.schedule(new EventViewTask(this, eventId++), 2, TimeUnit.MILLISECONDS);
+                queryExecutor.schedule(viewTask, 2);
+
                 totalEvents++;
 
                 appLog.info(String.Format("Processed {0:N} events containing {1:N} records in {2:F2} secs"
@@ -301,16 +310,20 @@ namespace NuoTest
 
 
         do {
-            insertExecutor.execute(new EventGenerator(this, unique++));
+            EventGenerator generator = new EventGenerator(this, unique++);
+            //insertExecutor.execute(new EventGenerator(this, unique++));
+            insertExecutor.execute(generator);
 
             totalEvents++;
 
-            appLog.info(String.Format("Event scheduled. Queue size={0}", ((ThreadPoolExecutor) insertExecutor).getQueue().size()));
+            //int queueSize = ((ThreadPoolExecutor) insertExecutor).getQueue().size());
+            Int64 queueSize = totalScheduled - totalEvents;
+            appLog.info(String.Format("Event scheduled. Queue size={0}", queueSize));
 
             now = Environment.TickCount;
             currentRate = (Millis2Seconds * totalEvents) / (now - start);
 
-            appLog.info(String.Format("now={0}; endTime={1};  elapsed={2}; time left={3}", new object[] { now, endTime, now - start, endTime - now }));
+            appLog.info(String.Format("now={0}; endTime={1}; elapsed={2}; time left={3}", new object[] { now, endTime, now - start, endTime - now }));
 
             // randomly create a burst
             if (burstSize == 0 && burstProbability > 0 && Percent * random.NextDouble() <= burstProbability) {
@@ -335,12 +348,17 @@ namespace NuoTest
                     Thread.Sleep(sleepTime);
                 }
 
-                while (maxQueued >= 0 && ((ThreadPoolExecutor) insertExecutor).getQueue().size() > maxQueued) {
-                    appLog.info(String.Format("Queue size {0} is over limit {1} - sleeping", ((ThreadPoolExecutor) insertExecutor).getQueue().size(), maxQueued));
-                    Thread.Sleep(1 * Millis / (((ThreadPoolExecutor) insertExecutor).getQueue().size() > 1 ? 2 : 20));
+                //queueSize = ((ThreadPoolExecutor) insertExecutor).getQueue().size();
+                queueSize = totalScheduled = totalInserts;
+                while (maxQueued >= 0 && queueSize > maxQueued) {
+                    queueSize = totalScheduled = totalInserts;
+                    appLog.info(String.Format("Queue size {0} is over limit {1} - sleeping", queueSize, maxQueued));
+                    Thread.Sleep(1 * Millis / (queueSize > 1 ? 2 : 20));
                 }
 
-                appLog.info(String.Format("Sleeping done. Queue size={0}", ((ThreadPoolExecutor) insertExecutor).getQueue().size()));
+                // queueSize = ((ThreadPoolExecutor) insertExecutor).getQueue().size();
+                queueSize = totalScheduled - totalInserts;
+                appLog.info(String.Format("Sleeping done. Queue size={0}", queueSize));
 
             }
 
@@ -358,19 +376,24 @@ namespace NuoTest
         } while (Environment.TickCount < endTime);
     }
 
-    public void close()
+    public void Dispose()
     {
         insertExecutor.shutdownNow();
-        insertExecutor.awaitTermination(10, TimeUnit.SECONDS);
+        //insertExecutor.awaitTermination(10, TimeUnit.SECONDS);
+        insertExecutor.awaitTermination();
 
         queryExecutor.shutdownNow();
-        queryExecutor.awaitTermination(10, TimeUnit.SECONDS);
+        //queryExecutor.awaitTermination(10, TimeUnit.SECONDS);
+        queryExecutor.awaitTermination();
     
+        // queueSize = ((ThreadPoolExecutor) insertExecutor).getQueue().size();
+        Int64 queueSize = totalScheduled - totalInserts;
+
         appLog.info(String.Format("Exiting with {0} items remaining in the queue.\n\tProcessed {1:N} events containing {2:N} records in {3:F2} secs"
                         + "\n\tThroughput:\t{4:F2} events/sec at {5:F2} ips;"
                         + "\n\tSpeed:\t\t{6:N} inserts in {7:F2} secs = {8:F2} ips"
                         + "\n\tQueries:\t{9:N} queries got {10:N} records in {11:F2} secs at {12:F2} qps",
-                new object[] {((ThreadPoolExecutor) insertExecutor).getQueue().size(),
+                new object[] {queueSize,
                 totalEvents, totalInserts, (wallTime / Millis2Seconds), (Millis2Seconds * totalEvents / wallTime), (Millis2Seconds * totalInserts / wallTime),
                 totalInserts, (totalInsertTime / Millis2Seconds), (Millis2Seconds * totalInserts / totalInsertTime),
                 totalQueries, totalQueryRecords, (totalQueryTime / Millis2Seconds), (Millis2Seconds * totalQueries / totalQueryTime)}));
@@ -515,19 +538,20 @@ namespace NuoTest
         // implement warp-drive...
         if (timingSpeedup > 1) delay = (long)(delay / timingSpeedup);
 
-        queryExecutor.schedule(new EventViewTask(this, eventId), (long) delay, TimeUnit.SECONDS);
+        EventViewTask viewEvent = new EventViewTask(this, eventId);
+        //queryExecutor.schedule(new EventViewTask(this, eventId), (long) delay, TimeUnit.SECONDS);
 
-        appLog.info(String.Format("Scheduled EventViewTask for now +{0}", delay));
+        appLog.info(String.Format("Scheduled EventViewTask for now+{0}", delay));
     }
 
-    private class EventGenerator : Runnable 
+    internal class EventGenerator : Runnable 
     {
 
         private readonly long unique;
         private readonly Controller ctrl;
         private DateTime dateStamp = new DateTime();
 
-        EventGenerator(Controller ctrl, long unique) {
+        public EventGenerator(Controller ctrl, long unique) {
             this.unique = unique;
             this.ctrl = ctrl;
         }
@@ -548,15 +572,15 @@ namespace NuoTest
                 eventId = generateEvent(ownerId);
             }
 
-            int groupCount = ctrl.minGroups + Random.Next(ctrl.maxGroups - ctrl.minGroups);
+            int groupCount = ctrl.minGroups + ctrl.random.Next(ctrl.maxGroups - ctrl.minGroups);
             appLog.info(String.Format("Creating {0} groups", groupCount));
 
             int total = 2 + groupCount;
 
-            Dictionary<String, Data> dataRows = new Dictionary<String, Data>(maxData);
+            Dictionary<String, Data> dataRows = new Dictionary<String, Data>(ctrl.maxData);
 
             // data records per group
-            int dataCount = (ctrl.minData + Random.Next(ctrl.maxData - ctrl.minData)) / groupCount;
+            int dataCount = (ctrl.minData + ctrl.random.Next(ctrl.maxData - ctrl.minData)) / groupCount;
             appLog.info(String.Format("Creating {0} Data records @ {1} records per group", dataCount * groupCount, dataCount));
 
             for (int gx = 0; gx < groupCount; gx++) {
@@ -602,8 +626,8 @@ namespace NuoTest
             //totalInserts += total;
             //totalInsertTime += duration;
 
-            Interlocked.Add(ctrl.totalInserts, total);
-            Interlocked.Add(ctrl.totalInsertTime, duration);
+            Interlocked.Add(ref ctrl.totalInserts, total);
+            Interlocked.Add(ref ctrl.totalInsertTime, duration);
 
             ctrl.scheduleViewTask(eventId);
         }
@@ -662,7 +686,7 @@ namespace NuoTest
         }
     }
 
-    private class EventViewTask : Runnable 
+    internal class EventViewTask : Runnable 
     {
         private readonly long eventId;
         private readonly Controller ctrl;
@@ -686,9 +710,9 @@ namespace NuoTest
                     EventDetails details = ctrl.eventRepository.getDetails(eventId);
                     long duration = Environment.TickCount - start;
 
-                    Interlocked.Increment(ctrl.totalQueries);
-                    Interlocked.Add(ctrl.totalQueryRecords, details.Data.Count());
-                    Interlocked.Add(ctrl.totalQueryTime, duration);
+                    Interlocked.Increment(ref ctrl.totalQueries);
+                    Interlocked.Add(ref ctrl.totalQueryRecords, details.Data.Count());
+                    Interlocked.Add(ref ctrl.totalQueryTime, duration);
 
                     Controller.appLog.info(String.Format("Event viewed. Query response time= {0:F2} secs; {1:N} Data objects attached in {2} groups.",
                             (duration / Controller.Millis2Seconds), details.Data.Count(), details.Groups.Count()));
@@ -696,11 +720,12 @@ namespace NuoTest
             } catch (PersistenceException e) {
                 Controller.viewLog.info(String.Format("Error retrieving Event: {0}", e.ToString()));
                 //e.printStackTrace(System.out);
-                Controller.appLog.info(e.StackTrace.ToString());
+                Controller.viewLog.info(e.StackTrace.ToString());
             }
 
-
-            if (ctrl.queryBackoff > 0 && ((ThreadPoolExecutor) ctrl.insertExecutor).getQueue().size() > ctrl.maxQueued) {
+            //int queueSize = ((ThreadPoolExecutor) ctrl.insertExecutor).getQueue().size();
+            long queueSize = ctrl.totalScheduled - ctrl.totalInserts;
+            if (ctrl.queryBackoff > 0 && queueSize > ctrl.maxQueued) {
                 Controller.appLog.info(String.Format("(query) Queue size > maxQueued ({0}); sleeping for {1} ms...", ctrl.maxQueued, ctrl.queryBackoff));
                 Thread.Sleep(ctrl.queryBackoff);
             }

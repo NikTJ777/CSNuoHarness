@@ -60,6 +60,7 @@
     <Compile Include="OwnerRepository.cs" />
     <Compile Include="PersistenceException.cs" />
     <Compile Include="Repository.cs" />
+    <Compile Include="Runnable.cs" />
     <Compile Include="SchemaBuilder.cs" />
     <Compile Include="Data.cs" />
     <Compile Include="Group.cs" />
@@ -70,6 +71,7 @@
     <Compile Include="Owner.cs" />
     <Compile Include="Program.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
+    <Compile Include="ThreadPoolExecutor.cs" />
     <Compile Include="Writer.cs" />
   </ItemGroup>
   <ItemGroup>

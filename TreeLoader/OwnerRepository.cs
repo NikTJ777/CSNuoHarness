@@ -15,7 +15,7 @@ namespace NuoTest
 
 
         //[Override]
-        public void init()
+        public override void init()
         {
             table = new DataTable(tableName);
             table.Columns.Add("name", typeof(String));
@@ -24,7 +24,7 @@ namespace NuoTest
         }
 
         //@Override
-        public Owner mapIn(DbDataReader row) {
+        protected override Owner mapIn(DbDataReader row) {
             Owner owner = new Owner(row.GetInt64(0), row.GetString(1));
             owner.MasterAlias = row.GetString(2);
             owner.Region = row.GetString(3);
@@ -33,7 +33,7 @@ namespace NuoTest
         }
 
         //@Override
-        public DataRow mapOut(Owner owner) {
+        protected override DataRow mapOut(Owner owner) {
             DataRow row = table.NewRow();
             row[0] = owner.Name;
             row[1] = owner.MasterAlias;

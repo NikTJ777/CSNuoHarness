@@ -225,7 +225,26 @@ namespace NuoTest
 
 			// Create a new Program and launch.
 
-			(new Program()).Run(args);
+			//(new Program()).Run(args);
+            using (Controller controller = new Controller())
+            {
+                try
+                {
+                    controller.configure(args);
+                    controller.init();
+                    controller.run();
+                }
+                //catch (InterruptedException e) {
+                //    System.out.println("JNuoTest interrupted - exiting");
+                //}
+                catch (Exception e)
+                {
+                    Console.WriteLine("Exiting with fatal error: " + e.ToString());
+                    //e.printStackTrace(System.out);
+                    Console.WriteLine(e.StackTrace.ToString());
+                }
+            }
+
 		}
 
 		// Report

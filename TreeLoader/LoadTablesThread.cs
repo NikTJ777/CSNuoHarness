@@ -26,7 +26,7 @@ namespace NuoTest
 
 		private void Run()
 		{
-			
+			/*
 			DbProviderFactory factory = DbProviderFactories.GetFactory(Program.DBDRIVER);
 			DbConnection connection = factory.CreateConnection();
 
@@ -55,6 +55,7 @@ namespace NuoTest
 					}
 				}
 			}
+             */
 		}
 	}
 }
