@@ -23,7 +23,6 @@ namespace NuoTest
     internal ThreadPoolExecutor<EventGenerator> insertExecutor;
     internal ThreadPoolExecutor<EventViewTask> queryExecutor;
 
-    Dictionary<String, String> fileProperties;
     Dictionary<String, String> appProperties;
 
     internal long runTime;
@@ -123,16 +122,13 @@ namespace NuoTest
 
     public void configure(String[] args)
     {
-        // create 2 levels of file properties (application.properties; and database.properties)
-        fileProperties = new Dictionary<String, String>(defaultProperties);
+        // create app properties, using the default values as initial values
+        appProperties = new Dictionary<String, String>(defaultProperties);
 
-        // create app properties, using fileProperties as default values
-        appProperties = new Dictionary<String, String>(fileProperties);
-
-        // load properties from application.properties file into first (lower-priority) level of fileProperties
+        // load properties from application.properties file over the defaults
         loadProperties(appProperties, PROPERTIES_PATH);
 
-        // now load database properties into second (higher-priority) level of fileProperties
+        // now load database properties file over the application and the defaults
         loadProperties(appProperties, DB_PROPERTIES_PATH);
 
         // parse the command line into app properties, as command line overrides all others

@@ -157,7 +157,7 @@ namespace NuoTest
             if (transaction != null && commitMode != Mode.AUTO_COMMIT)
             {
                 try { transaction.Rollback(); }
-                catch (Exception e) { }
+                catch (Exception) { }
             }
         }
 
@@ -319,7 +319,7 @@ namespace NuoTest
                     loader.DestinationTableName = batch[0].Table.TableName;
                     loader.WriteToServer(batch.ToArray());
                 }
-                catch (Exception e) { }
+                catch (Exception) { }
                 batch.Clear();
             }
 
@@ -329,7 +329,7 @@ namespace NuoTest
             {
                 //for (DbCommand ps : statements.values()) {
                 try { ps.Dispose(); }
-                catch (Exception e) { }
+                catch (Exception) { }
             }
 
             statements.Clear();
@@ -349,7 +349,7 @@ namespace NuoTest
                 }
 
                 try { connection.Dispose(); }
-                catch (Exception e) { }
+                catch (Exception) { }
 
                 connection = null;
             }
