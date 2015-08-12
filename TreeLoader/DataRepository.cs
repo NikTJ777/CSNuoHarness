@@ -11,14 +11,14 @@ namespace NuoTest
     class DataRepository : AbstractRepository<Data>
     {
         public DataRepository()
-            : base("NuoTest.T_DATA", "instanceUID", "name", "description", "path", "active", "regionWeek")
+            : base("NuoTest.T_DATA", "groupId", "instanceUID", "name", "description", "path", "active", "regionWeek")
         { }
 
         //@Override
         public override void init()
         {
             table = new DataTable(tableName);
-            //table.Columns.Add("groupId", typeof(long));
+            table.Columns.Add("groupId", typeof(long));
             table.Columns.Add("instanceUID", typeof(String));
             table.Columns.Add("name", typeof(String));
             table.Columns.Add("description", typeof(String));
@@ -51,8 +51,8 @@ namespace NuoTest
             using (DbDataReader existing = queryBy("groupId", data.GroupId)) {
                 try {
                     while (existing.Read()) {
-                        data = dataRows[existing.GetString(2)];
-                        if (data != null) {
+                        if (dataRows.TryGetValue(existing.GetString(2), out data))
+                        {
                             data.Active = false;
                             total--;
                         }
@@ -82,13 +82,13 @@ namespace NuoTest
         protected override DataRow mapOut(Data data) {
             DataRow row = table.NewRow();
 
-            //row[0] = data.GroupId;
-            row[0] = data.InstanceUID;
-            row[1] = data.Name;
-            row[2] = data.Description;
-            row[3] = data.Path;
-            row[4] = data.Active;
-            row[5] = data.RegionWeek;
+            row[0] = data.GroupId;
+            row[1] = data.InstanceUID;
+            row[2] = data.Name;
+            row[3] = data.Description;
+            row[4] = data.Path;
+            row[5] = data.Active;
+            row[6] = data.RegionWeek;
 
             return row;
         }

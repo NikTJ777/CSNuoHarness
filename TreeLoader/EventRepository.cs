@@ -17,7 +17,7 @@ namespace NuoTest
         //internal static Logger log = Logger.getLogger("EventRepository");
 
         public EventRepository(OwnerRepository ownerRepository, GroupRepository groupRepository, DataRepository dataRepository)
-            : base("NuoTest.T_EVENT", "name", "description", "date", "region")
+            : base("NuoTest.T_EVENT", "ownerId", "name", "description", "date", "region")
         {
             this.ownerRepository = ownerRepository;
             this.groupRepository = groupRepository;
@@ -32,7 +32,7 @@ namespace NuoTest
                         ownerRepository, groupRepository, dataRepository);
 
             table = new System.Data.DataTable(tableName);
-            //table.Columns.Add("ownerId", typeof(long));
+            table.Columns.Add("ownerId", typeof(long));
             table.Columns.Add("name", typeof(String));
             table.Columns.Add("description", typeof(String));
             table.Columns.Add("date", typeof(DateTime));
@@ -97,11 +97,11 @@ namespace NuoTest
         {
             DataRow row = table.NewRow();
 
-            //row[0] = ev.OwnerId;
-            row[0] = ev.Name;
-            row[1] = ev.Description;
-            row[2] = ev.Date;
-            row[3] = ev.Region;
+            row[0] = ev.OwnerId;
+            row[1] = ev.Name;
+            row[2] = ev.Description;
+            row[3] = ev.Date;
+            row[4] = ev.Region;
 
             return row;
         }
