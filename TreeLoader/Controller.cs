@@ -96,8 +96,8 @@ namespace NuoTest
     internal const float Percent = 100.0f;
 
     public Controller() {
-        defaultProperties.Add(PROPERTIES_PATH, "classpath://properties/Application.properties");
-        defaultProperties.Add(DB_PROPERTIES_PATH, "classpath://properties/Database.properties");
+        defaultProperties.Add(PROPERTIES_PATH, "classpath://NuoTest.Application.properties");
+        defaultProperties.Add(DB_PROPERTIES_PATH, "classpath://NuoTest.Database.properties");
         defaultProperties.Add(AVERAGE_RATE, "0");
         defaultProperties.Add(MIN_VIEW_DELAY, "0");
         defaultProperties.Add(MAX_VIEW_DELAY, "0");
@@ -154,7 +154,7 @@ namespace NuoTest
         // now load database properties into second (higher-priority) level of fileProperties
         loadProperties(fileProperties, DB_PROPERTIES_PATH);
 
-        appLog.info(String.Format("command-line properties: {0}",  string.Join(";", appProperties)));
+        appLog.info("command-line properties: {0}",  string.Join(";", appProperties));
 
         StringBuilder builder = new StringBuilder(1024);
         builder.Append("\n***************** Resolved Properties ********************\n");
@@ -190,7 +190,7 @@ namespace NuoTest
         }
 
         if (maxBurst <= minBurst) {
-            appLog.info(String.Format("maxBurst ({0}) <= minBurst ({1}); burst disabled", maxBurst, minBurst));
+            appLog.info("maxBurst ({0}) <= minBurst ({1}); burst disabled", maxBurst, minBurst);
             burstProbability = minBurst = maxBurst = 0;
         }
 
@@ -247,7 +247,7 @@ namespace NuoTest
             using (SqlSession session = new SqlSession(SqlSession.Mode.AUTO_COMMIT)) {
                 String lastEventId = eventRepository.getValue("id", "ORDER BY id DESC LIMIT 1");
                 unique = Int64.Parse(lastEventId) + 1;
-                appLog.info(String.Format("lastEventID = {0}", lastEventId));
+                appLog.info("lastEventID = {0}", lastEventId);
             }
         }
 
@@ -275,7 +275,7 @@ namespace NuoTest
 
         // ensure that first sample time is different from start time...
         int settleTime = 2 * Millis;
-        appLog.info(String.Format("Settling for {0}: ", settleTime));
+        appLog.info("Settling for {0}: ", settleTime);
         Thread.Sleep(settleTime);
 
         // just run some queries
@@ -290,17 +290,17 @@ namespace NuoTest
 
                 totalEvents++;
 
-                appLog.info(String.Format("Processed {0:N} events containing {1:N} records in {2:F2} secs"
+                appLog.info("Processed {0:N} events containing {1:N} records in {2:F2} secs"
                                 + "\n\tThroughput:\t{3:F2} events/sec at {4:F2} ips;"
                                 + "\n\tSpeed:\t\t{5:N} inserts in {6:F2} secs = {7:F2} ips"
                                 + "\n\tQueries:\t{8:N} queries got {9:N} records in {10:F2} secs at {11:F2} qps",
-                        new object[] {totalEvents, totalInserts, (wallTime / Millis2Seconds), (Millis2Seconds * totalEvents / wallTime), (Millis2Seconds * totalInserts / wallTime),
+                        totalEvents, totalInserts, (wallTime / Millis2Seconds), (Millis2Seconds * totalEvents / wallTime), (Millis2Seconds * totalInserts / wallTime),
                         totalInserts, (totalInsertTime / Nano2Seconds), (Nano2Seconds * totalInserts / totalInsertTime),
-                        totalQueries, totalQueryRecords, (totalQueryTime / Nano2Seconds), (Nano2Seconds * totalQueries / totalQueryTime)}));
+                        totalQueries, totalQueryRecords, (totalQueryTime / Nano2Seconds), (Nano2Seconds * totalQueries / totalQueryTime));
 
                 //if (((ThreadPoolExecutor) queryExecutor).getQueue().size() > 10) {
                 if (totalEvents + 10 > totalQueries) {
-                    appLog.info(String.Format("{0} queries waiting - sleeping", totalEvents - totalQueries));
+                    appLog.info("{0} queries waiting - sleeping", totalEvents - totalQueries);
                     Thread.Sleep(200);
                 }
             }
@@ -318,17 +318,17 @@ namespace NuoTest
 
             //int queueSize = ((ThreadPoolExecutor) insertExecutor).getQueue().size());
             Int64 queueSize = totalScheduled - totalEvents;
-            appLog.info(String.Format("Event scheduled. Queue size={0}", queueSize));
+            appLog.info("Event scheduled. Queue size={0}", queueSize);
 
             now = Environment.TickCount;
             currentRate = (Millis2Seconds * totalEvents) / (now - start);
 
-            appLog.info(String.Format("now={0}; endTime={1}; elapsed={2}; time left={3}", new object[] { now, endTime, now - start, endTime - now }));
+            appLog.info("now={0}; endTime={1}; elapsed={2}; time left={3}", now, endTime, now - start, endTime - now);
 
             // randomly create a burst
             if (burstSize == 0 && burstProbability > 0 && Percent * random.NextDouble() <= burstProbability) {
                 burstSize = minBurst + random.Next(maxBurst - minBurst);
-                appLog.info(String.Format("Creating burst of {0}", burstSize));
+                appLog.info("Creating burst of {0}", burstSize);
             }
 
             if (burstSize > 0) {
@@ -338,11 +338,11 @@ namespace NuoTest
                     int sleepTime = (int) (averageSleep * (currentRate / averageRate));
                     if (now + sleepTime > endTime) sleepTime = 1 * Millis;
 
-                    appLog.info(String.Format("Current Rate= {0:F2}; sleeping for {1:N} ms", currentRate, sleepTime));
+                    appLog.info("Current Rate= {0:F2}; sleeping for {1:N} ms", currentRate, sleepTime);
 
                     if (timingSpeedup > 1) {
                         sleepTime = (int)(sleepTime / timingSpeedup);
-                        appLog.info(String.Format("Warp-drive: speedup {0:F}; sleeping for {1} ms", timingSpeedup, sleepTime));
+                        appLog.info("Warp-drive: speedup {0:F}; sleeping for {1} ms", timingSpeedup, sleepTime);
                     }
 
                     Thread.Sleep(sleepTime);
@@ -352,25 +352,25 @@ namespace NuoTest
                 queueSize = totalScheduled = totalInserts;
                 while (maxQueued >= 0 && queueSize > maxQueued) {
                     queueSize = totalScheduled = totalInserts;
-                    appLog.info(String.Format("Queue size {0} is over limit {1} - sleeping", queueSize, maxQueued));
+                    appLog.info("Queue size {0} is over limit {1} - sleeping", queueSize, maxQueued);
                     Thread.Sleep(1 * Millis / (queueSize > 1 ? 2 : 20));
                 }
 
                 // queueSize = ((ThreadPoolExecutor) insertExecutor).getQueue().size();
                 queueSize = totalScheduled - totalInserts;
-                appLog.info(String.Format("Sleeping done. Queue size={0}", queueSize));
+                appLog.info("Sleeping done. Queue size={0}", queueSize);
 
             }
 
             wallTime = Environment.TickCount - start;
 
-            appLog.info(String.Format("Processed {0:N} events containing {1:N} records in {2:F2} secs"
+            appLog.info("Processed {0:N} events containing {1:N} records in {2:F2} secs"
                             + "\n\tThroughput:\t{3:F2} events/sec at {4:F2} ips;"
                             + "\n\tSpeed:\t\t{5:N} inserts in {6:F2} secs = {7:F2} ips"
                             + "\n\tQueries:\t{8:N} queries got {9:N} records in {10:F2} secs at {11:F2} qps",
-                    new object[] {totalEvents, totalInserts, (wallTime / Millis2Seconds), (Millis2Seconds * totalEvents / wallTime), (Millis2Seconds * totalInserts / wallTime),
+                    totalEvents, totalInserts, (wallTime / Millis2Seconds), (Millis2Seconds * totalEvents / wallTime), (Millis2Seconds * totalInserts / wallTime),
                     totalInserts, (totalInsertTime / Millis2Seconds), (Millis2Seconds * totalInserts / totalInsertTime),
-                    totalQueries, totalQueryRecords, (totalQueryTime / Millis2Seconds), (Millis2Seconds * totalQueries / totalQueryTime)}));
+                    totalQueries, totalQueryRecords, (totalQueryTime / Millis2Seconds), (Millis2Seconds * totalQueries / totalQueryTime));
 
 
         } while (Environment.TickCount < endTime);
@@ -393,14 +393,14 @@ namespace NuoTest
         // queueSize = ((ThreadPoolExecutor) insertExecutor).getQueue().size();
         Int64 queueSize = totalScheduled - totalInserts;
 
-        appLog.info(String.Format("Exiting with {0} items remaining in the queue.\n\tProcessed {1:N} events containing {2:N} records in {3:F2} secs"
+        appLog.info("Exiting with {0} items remaining in the queue.\n\tProcessed {1:N} events containing {2:N} records in {3:F2} secs"
                         + "\n\tThroughput:\t{4:F2} events/sec at {5:F2} ips;"
                         + "\n\tSpeed:\t\t{6:N} inserts in {7:F2} secs = {8:F2} ips"
                         + "\n\tQueries:\t{9:N} queries got {10:N} records in {11:F2} secs at {12:F2} qps",
-                new object[] {queueSize,
+                queueSize,
                 totalEvents, totalInserts, (wallTime / Millis2Seconds), (Millis2Seconds * totalEvents / wallTime), (Millis2Seconds * totalInserts / wallTime),
                 totalInserts, (totalInsertTime / Millis2Seconds), (Millis2Seconds * totalInserts / totalInsertTime),
-                totalQueries, totalQueryRecords, (totalQueryTime / Millis2Seconds), (Millis2Seconds * totalQueries / totalQueryTime)}));
+                totalQueries, totalQueryRecords, (totalQueryTime / Millis2Seconds), (Millis2Seconds * totalQueries / totalQueryTime));
 
         //appLog.info(String.format("Exiting with %d items remaining in the queue.\n\tProcessed %,d events containing %,d records in %.2f secs\n\tThroughput:\t%.2f events/sec at %.2f ips;\n\tSpeed:\t\t%,d inserts in %.2f secs = %.2f ips",
         //        ((ThreadPoolExecutor) insertExecutor).getQueue().size(),
@@ -415,7 +415,7 @@ namespace NuoTest
         if (!appProperties.TryGetValue(DB_INIT_SQL, out script))
             appLog.info("Somehow script is NULL");
 
-        appLog.info(String.Format("running init sql (length: {0}): {1}", script.Length, script));
+        appLog.info("running init sql (length: {0}): {1}", script.Length, script);
         using (SqlSession session = new SqlSession(SqlSession.Mode.AUTO_COMMIT)) {
             session.execute(script);
         }
@@ -441,16 +441,16 @@ namespace NuoTest
 
         String path;
         if (!appProperties.TryGetValue(key, out path) || path.Length == 0) {
-            appLog.info(String.Format("loadProperties: key {0} not in app properties", key));
+            appLog.info("loadProperties: key {0} not in app properties", key);
             return;
         }
 
-        appLog.info(String.Format("loading properties: {0} from {1}", key, path));
+        appLog.info("loading properties: {0} from {1}", key, path);
         Dictionary<String, String> localKeys = new Dictionary<string, string>();
         Stream stream;
         if (path.StartsWith("classpath://")) {
             stream = Assembly.GetExecutingAssembly().GetManifestResourceStream(path.Substring("classpath://".Length));
-            appLog.info(String.Format("loading resource: {0}", path.Substring("classpath://".Length)));
+            appLog.info("loading resource: {0}", path.Substring("classpath://".Length));
         } else {
             stream = new FileStream(path, FileMode.Open);
         }
@@ -499,7 +499,7 @@ namespace NuoTest
         }
         resolveReferences(props);
 
-        appLog.info(String.Format("Loaded properties {0}: {1}", key, string.Join(";", localKeys)));
+        appLog.info("Loaded properties {0}: {1}", key, string.Join(";", localKeys));
     }
 
     protected void resolveReferences(Dictionary<String, String> props) {
@@ -522,11 +522,11 @@ namespace NuoTest
                     newVar.Append(val);
                 }
                 lastPos = m.Index + m.Length;
-                appLog.info(String.Format("resolving var reference {0} to {1}", m.Value, val));
+                appLog.info("resolving var reference {0} to {1}", m.Value, val);
             }
 
             if (newVar.Length > 0) {
-                appLog.info(String.Format("Replacing updated property {0}={1}", iter.Current.Key, newVar));
+                appLog.info("Replacing updated property {0}={1}", iter.Current.Key, newVar);
                 newVar.Append(iter.Current.Value.Substring(lastPos));
                 modified.Add(iter.Current.Key, newVar.ToString());
                 newVar.Clear();
@@ -547,7 +547,7 @@ namespace NuoTest
         EventViewTask viewEvent = new EventViewTask(this, eventId);
         //queryExecutor.schedule(new EventViewTask(this, eventId), (long) delay, TimeUnit.SECONDS);
 
-        appLog.info(String.Format("Scheduled EventViewTask for now+{0}", delay));
+        appLog.info("Scheduled EventViewTask for now+{0}", delay);
     }
 
     internal class EventGenerator : Runnable 
@@ -579,7 +579,7 @@ namespace NuoTest
             }
 
             int groupCount = ctrl.minGroups + ctrl.random.Next(ctrl.maxGroups - ctrl.minGroups);
-            appLog.info(String.Format("Creating {0} groups", groupCount));
+            appLog.info("Creating {0} groups", groupCount);
 
             int total = 2 + groupCount;
 
@@ -587,7 +587,7 @@ namespace NuoTest
 
             // data records per group
             int dataCount = (ctrl.minData + ctrl.random.Next(ctrl.maxData - ctrl.minData)) / groupCount;
-            appLog.info(String.Format("Creating {0} Data records @ {1} records per group", dataCount * groupCount, dataCount));
+            appLog.info("Creating {0} Data records @ {1} records per group", dataCount * groupCount, dataCount);
 
             for (int gx = 0; gx < groupCount; gx++) {
                 using (SqlSession session = new SqlSession(SqlSession.Mode.AUTO_COMMIT)) {
@@ -605,7 +605,7 @@ namespace NuoTest
                 using (SqlSession session = new SqlSession(SqlSession.Mode.AUTO_COMMIT)) {
                     long uniqueRows = ctrl.dataRepository.checkUniqueness(dataRows);
 
-                    appLog.info(String.Format("{0} rows out of {1} new rows are unique", uniqueRows, dataCount));
+                    appLog.info("{0} rows out of {1} new rows are unique", uniqueRows, dataCount);
                     ctrl.groupRepository.update(groupId, "dataCount", uniqueRows);
                 }
 
@@ -617,10 +617,10 @@ namespace NuoTest
                             ctrl.dataRepository.persist(data);
                             count++;
                         }
-                        appLog.info(String.Format("inserting {0} data rows", count));
+                        appLog.info("inserting {0} data rows", count);
                     }
                 } catch (Exception e) {
-                    appLog.info(String.Format("Error inserting data row {0}", e.ToString()));
+                    appLog.info("Error inserting data row {0}", e.ToString());
                 }
 
                 report("Data Group", dataCount, Environment.TickCount - dataStart);
@@ -688,7 +688,7 @@ namespace NuoTest
 
         private void report(String name, int count, long duration) {
             double rate = (count > 0 && duration > 0 ? Millis2Seconds * count / duration : 0);
-            appLog.info(String.Format("Run {0}; generated {1} ({2:N} records); duration={3:F2} ms; rate={4:F2}", new object[] {unique, name, count, duration, rate} ));
+            appLog.info("Run {0}; generated {1} ({2:N} records); duration={3:F2} ms; rate={4:F2}", unique, name, count, duration, rate);
         }
     }
 
@@ -720,8 +720,8 @@ namespace NuoTest
                     Interlocked.Add(ref ctrl.totalQueryRecords, details.Data.Count());
                     Interlocked.Add(ref ctrl.totalQueryTime, duration);
 
-                    Controller.appLog.info(String.Format("Event viewed. Query response time= {0:F2} secs; {1:N} Data objects attached in {2} groups.",
-                            (duration / Controller.Millis2Seconds), details.Data.Count(), details.Groups.Count()));
+                    Controller.appLog.info("Event viewed. Query response time= {0:F2} secs; {1:N} Data objects attached in {2} groups.",
+                            (duration / Controller.Millis2Seconds), details.Data.Count(), details.Groups.Count());
                 }
             } catch (PersistenceException e) {
                 Controller.viewLog.info(String.Format("Error retrieving Event: {0}", e.ToString()));
@@ -732,7 +732,7 @@ namespace NuoTest
             //int queueSize = ((ThreadPoolExecutor) ctrl.insertExecutor).getQueue().size();
             long queueSize = ctrl.totalScheduled - ctrl.totalInserts;
             if (ctrl.queryBackoff > 0 && queueSize > ctrl.maxQueued) {
-                Controller.appLog.info(String.Format("(query) Queue size > maxQueued ({0}); sleeping for {1} ms...", ctrl.maxQueued, ctrl.queryBackoff));
+                Controller.appLog.info("(query) Queue size > maxQueued ({0}); sleeping for {1} ms...", ctrl.maxQueued, ctrl.queryBackoff);
                 Thread.Sleep(ctrl.queryBackoff);
             }
         }

@@ -76,8 +76,8 @@
   </ItemGroup>
   <ItemGroup>
     <None Include="App.config" />
-    <None Include="Application.properties" />
-    <None Include="Datbase.properties" />
+    <EmbeddedResource Include="Application.properties" />
+    <EmbeddedResource Include="Datbase.properties" />
     <None Include="packages.config" />
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
