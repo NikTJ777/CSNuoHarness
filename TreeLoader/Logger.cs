@@ -24,8 +24,9 @@ namespace NuoTest
 
         public static Logger getLogger(String name)
         {
-            Logger result = extent[name];
-            if (result == null) {
+            Logger result;
+            if (!extent.TryGetValue(name, out result))
+            {
                 result = new Logger(name);
                 extent[name] = result;
             }
@@ -39,7 +40,7 @@ namespace NuoTest
         protected void write(String level, String msg, params Object[] args)
         {
             String now = DateTime.Now.ToString("MMM dd, yyyy hh:mm:ss tt");
-            Console.WriteLine("%s %s\n%s: %s", now, name, level, String.Format(msg, args));
+            Console.WriteLine("{0} {1}\n{2}: {3}", new object[] {now, name, level, String.Format(msg, args)});
         }
 
     }

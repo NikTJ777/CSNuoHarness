@@ -129,7 +129,7 @@ namespace NuoTest
 
         public static void cleanup()
         {
-            if (sessions.Count == 0)
+            if (sessions == null || sessions.Count == 0)
                 return;
 
             int released = 0;

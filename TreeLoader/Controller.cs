@@ -378,14 +378,18 @@ namespace NuoTest
 
     public void Dispose()
     {
-        insertExecutor.shutdownNow();
-        //insertExecutor.awaitTermination(10, TimeUnit.SECONDS);
-        insertExecutor.awaitTermination();
-
-        queryExecutor.shutdownNow();
-        //queryExecutor.awaitTermination(10, TimeUnit.SECONDS);
-        queryExecutor.awaitTermination();
-    
+        if (insertExecutor != null)
+        {
+            insertExecutor.shutdownNow();
+            //insertExecutor.awaitTermination(10, TimeUnit.SECONDS);
+            insertExecutor.awaitTermination();
+        }
+        if (queryExecutor != null)
+        {
+            queryExecutor.shutdownNow();
+            //queryExecutor.awaitTermination(10, TimeUnit.SECONDS);
+            queryExecutor.awaitTermination();
+        }
         // queueSize = ((ThreadPoolExecutor) insertExecutor).getQueue().size();
         Int64 queueSize = totalScheduled - totalInserts;
 
