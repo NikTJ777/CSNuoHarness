@@ -454,47 +454,48 @@ namespace NuoTest
         } else {
             stream = new FileStream(path, FileMode.Open);
         }
-        
-        try
+        if (stream != null)
         {
-            using (StreamReader reader = new StreamReader(stream))
+            try
             {
-                string line;
-                while ((line = reader.ReadLine()) != null)
+                using (StreamReader reader = new StreamReader(stream))
                 {
-                    if ((!String.IsNullOrEmpty(line)) &&
-                        (!line.StartsWith(";")) &&
-                        (!line.StartsWith("#")) &&
-                        (!line.StartsWith("'")) &&
-                        (line.Contains('=')))
+                    string line;
+                    while ((line = reader.ReadLine()) != null)
                     {
-                        int index = line.IndexOf('=');
-                        String k = line.Substring(0, index).Trim();
-                        String v = line.Substring(index + 1).Trim();
+                        if ((!String.IsNullOrEmpty(line)) &&
+                            (!line.StartsWith(";")) &&
+                            (!line.StartsWith("#")) &&
+                            (!line.StartsWith("'")) &&
+                            (line.Contains('=')))
+                        {
+                            int index = line.IndexOf('=');
+                            String k = line.Substring(0, index).Trim();
+                            String v = line.Substring(index + 1).Trim();
 
-                        if ((v.StartsWith("\"") && v.EndsWith("\"")) ||
-                            (v.StartsWith("'") && v.EndsWith("'")))
-                        {
-                            v = v.Substring(1, v.Length - 2);
-                        }
+                            if ((v.StartsWith("\"") && v.EndsWith("\"")) ||
+                                (v.StartsWith("'") && v.EndsWith("'")))
+                            {
+                                v = v.Substring(1, v.Length - 2);
+                            }
 
-                        try
-                        {
-                            props.Add(k, v);
-                        }
-                        catch 
-                        {
-                            //ignore duplicates
+                            try
+                            {
+                                props.Add(k, v);
+                            }
+                            catch
+                            {
+                                //ignore duplicates
+                            }
                         }
                     }
                 }
-            }       
+            }
+            finally
+            {
+                stream.Close();
+            }
         }
-        finally
-        {
-            stream.Close();
-        }
- 
         resolveReferences(props);
 
         appLog.info(String.Format("Loaded properties {0}: {1}", key, props));
