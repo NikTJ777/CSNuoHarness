@@ -18,6 +18,7 @@ namespace NuoTest
 
         public ThreadPoolExecutor(int maxThreads)
         {
+            this.maxThreads = maxThreads;
             queue = new BlockingCollection<ExecutorTask>();
             semaphore = new Semaphore(maxThreads, maxThreads);
 
