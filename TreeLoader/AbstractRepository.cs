@@ -63,7 +63,7 @@ namespace NuoTest
 
                     return mapIn(row);
                 } catch (Exception e) {
-                    log.info(String.Format("FindById failed due to {0}", e.ToString()));
+                    log.info("FindById failed due to {0}", e.ToString());
                     return null;
                 }
             }
@@ -90,7 +90,7 @@ namespace NuoTest
 
                 } catch (/*NuoDbSQLTransient */Exception te) {
                     if (retry < maxRetry) {
-                        log.info(String.Format("Retriable exception in persist: {0}; retrying...", te.ToString()));
+                        log.info("Retriable exception in persist: {0}; retrying...", te.ToString());
                         try { Thread.Sleep(retrySleep); } catch (/*Interrupted*/Exception) {}
                         continue;
                     }

@@ -718,7 +718,7 @@ namespace NuoTest
 
             //long x = totalInserts;
 
-            Controller.viewLog.info(String.Format("Running view query for event {0}", eventId));
+            Controller.viewLog.info("Running view query for event {0}", eventId);
 
             try
             {
@@ -736,7 +736,7 @@ namespace NuoTest
                             (duration / Controller.Millis2Seconds), details.Data.Count(), details.Groups.Count());
                 }
             } catch (PersistenceException e) {
-                Controller.viewLog.info(String.Format("Error retrieving Event: {0}", e.ToString()));
+                Controller.viewLog.info("Error retrieving Event: {0}", e.ToString());
                 //e.printStackTrace(System.out);
                 Controller.viewLog.info(e.StackTrace.ToString());
             }

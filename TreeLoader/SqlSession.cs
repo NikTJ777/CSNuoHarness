@@ -135,7 +135,7 @@ namespace NuoTest
             int released = 0;
             foreach (KeyValuePair<SqlSession, String> entry in sessions)
             {
-                log.info(String.Format("cleaning up unclosed session from {0}", entry.Value));
+                log.info("cleaning up unclosed session from {0}", entry.Value);
                 entry.Key.Dispose();
                 released++;
             }
@@ -318,9 +318,16 @@ namespace NuoTest
                 {
                     NuoDbBulkLoader loader = new NuoDbBulkLoader(updateConnectionString);
                     loader.DestinationTableName = batch[0].Table.TableName;
+                    foreach (DataColumn c in batch[0].Table.Columns)
+                    {
+                        loader.ColumnMappings.Add(c.ColumnName, c.ColumnName);
+                    }
                     loader.WriteToServer(batch.ToArray());
                 }
-                catch (Exception) { }
+                catch (Exception e)
+                {
+                    log.info("Error during bulk update: {0}", e.Message);
+                }
                 batch.Clear();
             }
 

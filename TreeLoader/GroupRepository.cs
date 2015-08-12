@@ -10,14 +10,14 @@ namespace NuoTest
 {
     class GroupRepository : AbstractRepository<Group>
     {
-        public GroupRepository() : base("NuoTest.T_GROUP", "eventId", "name", "description", "dataCount", "date", "region", "week")
+        public GroupRepository() : base("NuoTest.T_GROUP", "name", "description", "dataCount", "date", "region", "week")
         {}
 
         //@Override
         public override void init()
         {
             table = new DataTable(tableName);
-            table.Columns.Add("eventId", typeof(String));
+            //table.Columns.Add("eventId", typeof(String));
             table.Columns.Add("name", typeof(String));
             table.Columns.Add("description", typeof(String));
             table.Columns.Add("dataCount", typeof(int));
@@ -44,13 +44,13 @@ namespace NuoTest
         protected override DataRow mapOut(Group group) {
             DataRow row = table.NewRow();
 
-            row[0] = group.EventId;
-            row[1] = group.Name;
-            row[2] = group.Description;
-            row[3] = group.DataCount;
-            row[4] = group.Date;
-            row[5] = group.Region;
-            row[6] = group.Week;
+            //row[0] = group.EventId;
+            row[0] = group.Name;
+            row[1] = group.Description;
+            row[2] = group.DataCount;
+            row[3] = group.Date;
+            row[4] = group.Region;
+            row[5] = group.Week;
 
             return row;
         }
