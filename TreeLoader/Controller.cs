@@ -313,7 +313,8 @@ namespace NuoTest
             totalEvents++;
 
             //int queueSize = ((ThreadPoolExecutor) insertExecutor).getQueue().size());
-            Int64 queueSize = totalScheduled - totalEvents;
+            //Int64 queueSize = totalScheduled - totalEvents;
+            long queueSize = insertExecutor.QueueSize();
             appLog.info("Event scheduled. Queue size={0}", queueSize);
 
             now = Environment.TickCount;
@@ -345,15 +346,18 @@ namespace NuoTest
                 }
 
                 //queueSize = ((ThreadPoolExecutor) insertExecutor).getQueue().size();
-                queueSize = totalScheduled = totalInserts;
+                //queueSize = totalScheduled = totalInserts;
+                queueSize = insertExecutor.QueueSize();
                 while (maxQueued >= 0 && queueSize > maxQueued) {
-                    queueSize = totalScheduled = totalInserts;
+                    //queueSize = totalScheduled = totalInserts;
+                    queueSize = insertExecutor.QueueSize();
                     appLog.info("Queue size {0} is over limit {1} - sleeping", queueSize, maxQueued);
                     Thread.Sleep(1 * Millis / (queueSize > 1 ? 2 : 20));
                 }
 
                 // queueSize = ((ThreadPoolExecutor) insertExecutor).getQueue().size();
-                queueSize = totalScheduled - totalInserts;
+                //queueSize = totalScheduled - totalInserts;
+                queueSize = insertExecutor.QueueSize();
                 appLog.info("Sleeping done. Queue size={0}", queueSize);
 
             }
@@ -387,7 +391,8 @@ namespace NuoTest
             queryExecutor.awaitTermination();
         }
         // queueSize = ((ThreadPoolExecutor) insertExecutor).getQueue().size();
-        Int64 queueSize = totalScheduled - totalInserts;
+        //Int64 queueSize = totalScheduled - totalInserts;
+        long queueSize = insertExecutor.QueueSize();
 
         appLog.info("Exiting with {0} items remaining in the queue.\n\tProcessed {1:N} events containing {2:N} records in {3:F2} secs"
                         + "\n\tThroughput:\t{4:F2} events/sec at {5:F2} ips;"
@@ -545,13 +550,14 @@ namespace NuoTest
     protected void scheduleViewTask(long eventId) {
         if (minViewAfterInsert <= 0 || maxViewAfterInsert <= 0) return;
 
-        long delay = (minViewAfterInsert + random.Next(maxViewAfterInsert - minViewAfterInsert));
+        int delay = (minViewAfterInsert + random.Next(maxViewAfterInsert - minViewAfterInsert));
 
         // implement warp-drive...
-        if (timingSpeedup > 1) delay = (long)(delay / timingSpeedup);
+        if (timingSpeedup > 1) delay = (int)(delay / timingSpeedup);
 
         EventViewTask viewEvent = new EventViewTask(this, eventId);
         //queryExecutor.schedule(new EventViewTask(this, eventId), (long) delay, TimeUnit.SECONDS);
+        queryExecutor.schedule(viewEvent, delay * Millis);
 
         appLog.info("Scheduled EventViewTask for now+{0}", delay);
     }
@@ -736,7 +742,8 @@ namespace NuoTest
             }
 
             //int queueSize = ((ThreadPoolExecutor) ctrl.insertExecutor).getQueue().size();
-            long queueSize = ctrl.totalScheduled - ctrl.totalInserts;
+            //long queueSize = ctrl.totalScheduled - ctrl.totalInserts;
+            long queueSize = ctrl.insertExecutor.QueueSize();
             if (ctrl.queryBackoff > 0 && queueSize > ctrl.maxQueued) {
                 Controller.appLog.info("(query) Queue size > maxQueued ({0}); sleeping for {1} ms...", ctrl.maxQueued, ctrl.queryBackoff);
                 Thread.Sleep(ctrl.queryBackoff);

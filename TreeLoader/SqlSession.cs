@@ -216,6 +216,7 @@ namespace NuoTest
                     foreach (String line in lines)
                     {
                         command.CommandText = line.Trim();
+                        Console.WriteLine("executing statement {0}", line.Trim());
                         command.ExecuteNonQuery();
                     }
                     transaction.Commit();
