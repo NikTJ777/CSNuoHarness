@@ -154,7 +154,7 @@ namespace NuoTest
         // now load database properties into second (higher-priority) level of fileProperties
         loadProperties(fileProperties, DB_PROPERTIES_PATH);
 
-        appLog.info(String.Format("command-line properties: {0}", appProperties.ToString()));
+        appLog.info(String.Format("command-line properties: {0}",  string.Join(";", appProperties)));
 
         StringBuilder builder = new StringBuilder(1024);
         builder.Append("\n***************** Resolved Properties ********************\n");
@@ -446,7 +446,7 @@ namespace NuoTest
         }
 
         appLog.info(String.Format("loading properties: {0} from {1}", key, path));
-
+        Dictionary<String, String> localKeys = new Dictionary<string, string>();
         Stream stream;
         if (path.StartsWith("classpath://")) {
             stream = Assembly.GetExecutingAssembly().GetManifestResourceStream(path.Substring("classpath://".Length));
@@ -481,6 +481,7 @@ namespace NuoTest
 
                             try
                             {
+                                localKeys.Add(k, v);
                                 props.Add(k, v);
                             }
                             catch
@@ -498,7 +499,7 @@ namespace NuoTest
         }
         resolveReferences(props);
 
-        appLog.info(String.Format("Loaded properties {0}: {1}", key, props));
+        appLog.info(String.Format("Loaded properties {0}: {1}", key, string.Join(";", localKeys)));
     }
 
     protected void resolveReferences(Dictionary<String, String> props) {
