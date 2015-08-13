@@ -20,13 +20,13 @@ namespace NuoTest
         internal int maxRetry = 3;
         internal int retrySleep = 2000;
 
-        protected static readonly String findSql = "SELECT * from {0} where id = '{1}'";
+        protected static readonly String findSql = "SELECT * from {0} where id = ?";
 
-        protected static readonly String findBySql = "SELECT * from {0} where {1} = '{2}'";
+        protected static readonly String findBySql = "SELECT * from {0} where {1} = ?";
 
         protected static readonly String persistSql = "INSERT into {0} ({1}) values ({2})";
 
-        protected static readonly String updateSql = "UPDATE {0} set {1} = ({2}) where id = '{3}'";
+        protected static readonly String updateSql = "UPDATE {0} set {1} = ({2}) where id = ?";
 
         protected static readonly String getSql = "SELECT {0} from {1} {2}";
 
@@ -56,8 +56,10 @@ namespace NuoTest
 
         public T findById(long id)
         {
-            String sql = String.Format(findSql, tableName, id);
-            using (DbDataReader row = SqlSession.getCurrent().getStatement(sql).ExecuteReader()) {
+            String sql = String.Format(findSql, tableName);
+            DbCommand cmd = SqlSession.getCurrent().getStatement(sql);
+            cmd.Parameters[0].Value = id;
+            using (DbDataReader row = cmd.ExecuteReader()) {
                 try {
                     if (row == null || row.Read() == false) return null;
 
@@ -112,12 +114,12 @@ namespace NuoTest
 
             String args = builder.ToString();
 
-            String sql = String.Format(updateSql, tableName, columns, args, id);
+            String sql = String.Format(updateSql, tableName, columns, args);
             SqlSession session = SqlSession.getCurrent();
             using (DbCommand update = session.getStatement(sql)) {
                 try {
-                    update.Prepare();
                     setParams(update, columns, values);
+                    update.Parameters[values.Length].Value = id;
                     session.update(update);
                 } catch (Exception e) {
                     throw new PersistenceException(e, "Error updating table {0}, id {1}", tableName, id);
@@ -160,13 +162,16 @@ namespace NuoTest
 
         protected DbDataReader queryBy(String column, params Object[] param)
         {
-            StringBuilder sql = new StringBuilder().Append(String.Format(findBySql, tableName, column, param[0].ToString()));
+            StringBuilder sql = new StringBuilder().AppendFormat(findBySql, tableName, column);
             for (int px = 1; px < param.Length; px++) {
-                sql.Append(String.Format(" OR {0} = '{1}'", column, param[px].ToString()));
+                sql.AppendFormat(" OR {0} = ?", column);
             }
-
+            DbCommand cmd = SqlSession.getCurrent().getStatement(sql.ToString());
+            for (int px = 0; px < param.Length; px++) {
+                cmd.Parameters[px].Value = param[px];
+            }
             //log.info("queryBy {0}", sql.ToString());
-            return SqlSession.getCurrent().getStatement(sql.ToString()).ExecuteReader();
+            return cmd.ExecuteReader();
         }
 
         public abstract void init();

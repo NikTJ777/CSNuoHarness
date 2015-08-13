@@ -19,7 +19,7 @@ namespace NuoTest
         private DbConnection connection;
         private DbTransaction transaction;
         private List<DataRow> batch;
-        private List<DbCommand> statements;
+        private Dictionary<String, DbCommand> statements;
 
         //private static DataSource dataSource;
         private static DbProviderFactory dataSource;
@@ -185,27 +185,28 @@ namespace NuoTest
 
             if (statements == null)
             {
-                statements = new List<DbCommand>(16);
-                //statements = new HashMap<String, DbCommand>(16);
+                statements = new Dictionary<String, DbCommand>();
             }
 
-            //DbCommand ps = statements.get(sql);
-
-            //if (ps == null) {
-            //int returnMode = (mode == Mode.AUTO_COMMIT ? Statement.RETURN_GENERATED_KEYS : Statement.NO_GENERATED_KEYS);
-            //int returnMode = Statement.RETURN_GENERATED_KEYS;
-            //DbCommand ps = connection().prepareStatement(sql);
-            DbCommand cmd = Connection().CreateCommand();
-            cmd.CommandText = sql;
-            statements.Add(cmd);
-            //statements.put(sql, ps);
-            //} else {
-            //    ps.clearParameters();
-            //}
+            DbCommand ps;
+            if (!statements.TryGetValue(sql, out ps))
+            {
+                //if (ps == null) {
+                //int returnMode = (mode == Mode.AUTO_COMMIT ? Statement.RETURN_GENERATED_KEYS : Statement.NO_GENERATED_KEYS);
+                //int returnMode = Statement.RETURN_GENERATED_KEYS;
+                //DbCommand ps = connection().prepareStatement(sql);
+                ps = Connection().CreateCommand();
+                ps.CommandText = sql;
+                ps.Prepare();
+                statements[sql] = ps;
+            } else {
+                foreach (DbParameter p in ps.Parameters)
+                    p.Value = null;
+            }
 
             //batch = (mode == Mode.BATCH ? ps : null);
 
-            return cmd;
+            return ps;
         }
 
         public void execute(String script)
@@ -327,12 +328,13 @@ namespace NuoTest
                 try
                 {
                     long batchStart = Environment.TickCount;
-                    NuoDbBulkLoader loader = new NuoDbBulkLoader(updateConnectionString);
+                    NuoDbBulkLoader loader = new NuoDbBulkLoader(Connection() as NuoDbConnection);
                     //{
                         loader.DestinationTableName = batch[0].Table.TableName;
+                        int index = 0;
                         foreach (DataColumn c in batch[0].Table.Columns)
                         {
-                            loader.ColumnMappings.Add(c.ColumnName, c.ColumnName);
+                            loader.ColumnMappings.Add(index++, c.ColumnName);
                         }
                         loader.WriteToServer(batch.ToArray());
                     //}
@@ -347,9 +349,9 @@ namespace NuoTest
 
             if (statements == null) return;
 
-            foreach (DbCommand ps in statements)
+            //for (DbCommand ps : statements.values()) {
+            foreach (DbCommand ps in statements.Values)
             {
-                //for (DbCommand ps : statements.values()) {
                 try { ps.Dispose(); }
                 catch (Exception) { }
             }
