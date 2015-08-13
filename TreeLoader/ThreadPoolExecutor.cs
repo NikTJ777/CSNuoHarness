@@ -46,10 +46,14 @@ namespace NuoTest
             queue.CompleteAdding();
         }
 
-        public void awaitTermination()
+        public void awaitTermination(int timeout)
         {
             if (!queue.IsAddingCompleted)
                 throw new Exception("ThreadPoolExecutor has not been shutdown - awaitTermination failed");
+
+            // start the timeout timer...
+            ThreadStart timer = new ThreadStart(() => { Thread.Sleep(timeout); semaphore.Release(maxThreads); });
+            new Thread(timer).Start();
 
             // wait for all threads to exit
             for (int tx = 0; tx < maxThreads; tx++)
@@ -94,9 +98,9 @@ namespace NuoTest
                 ExecutorTask task = null;
                 ExecutorTask nextInLine = null;
 
-                do
+                while (! executor.queue.IsAddingCompleted)
                 {
-                    log.info("Looking for work...");
+                    //log.info("Looking for work...");
 
                     if (nextInLine != null) {
                         log.info("taking nextInLine...");
@@ -104,8 +108,16 @@ namespace NuoTest
                         nextInLine = null;
                     } else {
                         // block on next task
-                        log.info("wait and get next...");
-                        task = executor.queue.Take();
+                        log.info("wait for next...");
+                        try { task = executor.queue.Take(); }
+                        catch (Exception e)
+                        {
+                            if (!executor.queue.IsAddingCompleted) {
+                                log.info("Error while waiting for task {0}", e.ToString());
+                                executor.addThread();
+                            }
+                            break;
+                        }
                     }
 
                     if (task != null)
@@ -137,7 +149,7 @@ namespace NuoTest
                             }
                         }
 
-                        log.info("running task...");
+                        //log.info("running task...");
                         try { task.task.run(); }
                         catch (Exception e)
                         {
@@ -147,10 +159,10 @@ namespace NuoTest
 
                             throw e;
                         }
-                        log.info("task complete.");
+                        //log.info("task complete.");
                     }
 
-                } while (! executor.queue.IsAddingCompleted);
+                }
 
                 log.info("ThreadPoolExecutor is shutdown - thread exiting");
                 executor.semaphore.Release();

@@ -390,13 +390,13 @@ namespace NuoTest
         {
             insertExecutor.shutdownNow();
             //insertExecutor.awaitTermination(10, TimeUnit.SECONDS);
-            insertExecutor.awaitTermination();
+            insertExecutor.awaitTermination(10000);
         }
         if (queryExecutor != null)
         {
             queryExecutor.shutdownNow();
             //queryExecutor.awaitTermination(10, TimeUnit.SECONDS);
-            queryExecutor.awaitTermination();
+            queryExecutor.awaitTermination(10000);
         }
         // queueSize = ((ThreadPoolExecutor) insertExecutor).getQueue().size();
         //Int64 queueSize = totalScheduled - totalInserts;
