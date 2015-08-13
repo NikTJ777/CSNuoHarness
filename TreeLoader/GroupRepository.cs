@@ -16,14 +16,6 @@ namespace NuoTest
         //@Override
         public override void init()
         {
-            table = new DataTable(tableName);
-            table.Columns.Add("eventId", typeof(String));
-            table.Columns.Add("name", typeof(String));
-            table.Columns.Add("description", typeof(String));
-            table.Columns.Add("dataCount", typeof(int));
-            table.Columns.Add("date", typeof(DateTime));
-            table.Columns.Add("region", typeof(String));
-            table.Columns.Add("week", typeof(long));
 
         }
 
@@ -41,7 +33,22 @@ namespace NuoTest
         }
 
         //@Override
-        protected override DataRow mapOut(Group group) {
+        protected override DataRow mapOut(Group group, SqlSession session) {
+            DataTable table;
+            if (! session.BatchTable.TryGetValue(tableName, out table))
+            {
+                table = new DataTable(tableName);
+                session.BatchTable[tableName] = table;
+
+                table.Columns.Add("eventId", typeof(String));
+                table.Columns.Add("name", typeof(String));
+                table.Columns.Add("description", typeof(String));
+                table.Columns.Add("dataCount", typeof(int));
+                table.Columns.Add("date", typeof(DateTime));
+                table.Columns.Add("region", typeof(String));
+                table.Columns.Add("week", typeof(long));
+            }
+
             DataRow row = table.NewRow();
 
             row[0] = group.EventId;

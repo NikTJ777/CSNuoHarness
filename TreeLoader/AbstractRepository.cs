@@ -15,7 +15,7 @@ namespace NuoTest
         internal String[] columns;
         internal String names;
         internal String replace;
-        internal DataTable table;
+        //internal DataTable table;
 
         internal int maxRetry = 3;
         internal int retrySleep = 2000;
@@ -86,9 +86,13 @@ namespace NuoTest
                 try {
                     //DataRow update = session.getStatement(sql);
 
-                    DataRow row = mapOut(entity);
+                    //long mapStart = Environment.TickCount;
+                    DataRow row = mapOut(entity, session);
+                    //log.info("map out complete; time={0} ms", Environment.TickCount - mapStart);
 
+                    //long updateStart = Environment.TickCount;
                     return session.update(row, sql);
+                    //log.info("session.update complete; time={0} ms", Environment.TickCount - updateStart);
 
                 } catch (/*NuoDbSQLTransient */Exception te) {
                     if (retry < maxRetry) {
@@ -178,7 +182,7 @@ namespace NuoTest
 
         protected abstract T mapIn(DbDataReader reader);
 
-        protected abstract DataRow mapOut(T entity);
+        protected abstract DataRow mapOut(T entity, SqlSession session);
 
         /**
          * set parameters into a PreparedStatement

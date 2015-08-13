@@ -40,7 +40,8 @@ namespace NuoTest
         protected void write(String level, String msg, params Object[] args)
         {
             String now = DateTime.Now.ToString("MMM dd, yyyy hh:mm:ss tt");
-            Console.WriteLine("{0} {1}\n{2}: {3}", new object[] {now, name, level, String.Format(msg, args)});
+            //Console.WriteLine("{0} {1}\n{2}: {3}", new object[] {now, name, level, String.Format(msg, args)});
+            Console.WriteLine("{0} {1}\n{2}: {3}", now, name, level, String.Format(msg, args) );
         }
 
     }

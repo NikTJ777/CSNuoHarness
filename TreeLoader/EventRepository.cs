@@ -31,12 +31,6 @@ namespace NuoTest
                 throw new ConfigurationException("Dependencies have not been set: ownerRepository {0}; groupRepository {1}; dataRepository {2}.",
                         ownerRepository, groupRepository, dataRepository);
 
-            table = new System.Data.DataTable(tableName);
-            table.Columns.Add("ownerId", typeof(long));
-            table.Columns.Add("name", typeof(String));
-            table.Columns.Add("description", typeof(String));
-            table.Columns.Add("date", typeof(DateTime));
-            table.Columns.Add("region", typeof(String));
         }
 
         /**
@@ -93,8 +87,21 @@ namespace NuoTest
         }
 
         //@Override
-        protected override DataRow mapOut(Event ev)
+        protected override DataRow mapOut(Event ev, SqlSession session)
         {
+            DataTable table;
+            if (! session.BatchTable.TryGetValue(tableName, out table))
+            {
+                table = new System.Data.DataTable(tableName);
+                session.BatchTable[tableName] = table;
+
+                table.Columns.Add("ownerId", typeof(long));
+                table.Columns.Add("name", typeof(String));
+                table.Columns.Add("description", typeof(String));
+                table.Columns.Add("date", typeof(DateTime));
+                table.Columns.Add("region", typeof(String));
+            }
+
             DataRow row = table.NewRow();
 
             row[0] = ev.OwnerId;

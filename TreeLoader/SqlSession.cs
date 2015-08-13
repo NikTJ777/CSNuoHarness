@@ -19,6 +19,7 @@ namespace NuoTest
         private DbConnection connection;
         private DbTransaction transaction;
         private List<DataRow> batch;
+        internal Dictionary<String, DataTable> BatchTable { get; set; }
         private Dictionary<String, DbCommand> statements;
 
         //private static DataSource dataSource;
@@ -118,6 +119,8 @@ namespace NuoTest
                 batch = new List<DataRow>();
             }
 
+            BatchTable = new Dictionary<String, DataTable>(8);
+
             SqlSession session = current.Value;
             if (session != null)
             {
@@ -176,7 +179,7 @@ namespace NuoTest
 
         public DbCommand getStatement(String sql)
         {
-            if (mode == Mode.BATCH && batch != null && batch.Count > 0)
+            if (mode == Mode.BATCH /* && batch != null && batch.Count > 0 */)
             {
                 throw new PersistenceException("getStatement called in BATCH MODE");
                 //batch.Clear();
@@ -323,20 +326,23 @@ namespace NuoTest
 
         protected void closeStatements()
         {
-            if (mode == Mode.BATCH && batch != null)
+            if (mode == Mode.BATCH && batch != null )
             {
                 try
                 {
                     long batchStart = Environment.TickCount;
                     NuoDbBulkLoader loader = new NuoDbBulkLoader(Connection() as NuoDbConnection);
                     //{
-                        loader.DestinationTableName = batch[0].Table.TableName;
-                        int index = 0;
-                        foreach (DataColumn c in batch[0].Table.Columns)
-                        {
-                            loader.ColumnMappings.Add(index++, c.ColumnName);
-                        }
-                        loader.WriteToServer(batch.ToArray());
+                    loader.DestinationTableName = batch[0].Table.TableName;
+                    //loader.DestinationTableName = BatchTable.TableName;
+                    int index = 0;
+                    foreach (DataColumn c in batch[0].Table.Columns)
+                    //foreach (DataColumn c in BatchTable.Columns)
+                    {
+                        loader.ColumnMappings.Add(index++, c.ColumnName);
+                    }
+                    loader.WriteToServer(batch.ToArray());
+                    //loader.WriteToServer(BatchTable);
                     //}
                     log.info("Batch commit complete duration={0}", Environment.TickCount - batchStart);
                 }
@@ -344,8 +350,20 @@ namespace NuoTest
                 {
                     log.info("Error during bulk update: {0}", e.Message);
                 }
-                batch.Clear();
+                finally
+                {
+                }
             }
+
+            if (batch != null) batch.Clear();
+            batch = null;
+
+            if (BatchTable != null)
+            {
+                foreach (DataTable table in BatchTable.Values) { table.Clear(); }
+                BatchTable.Clear();
+            }
+            BatchTable = null;
 
             if (statements == null) return;
 
@@ -377,6 +395,7 @@ namespace NuoTest
 
                 connection = null;
             }
+            transaction = null;
         }
     }
 }

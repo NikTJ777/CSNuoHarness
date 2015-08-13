@@ -18,16 +18,7 @@ namespace NuoTest
 
         //@Override
         public override void init()
-        {
-            table = new DataTable(tableName);
-            table.Columns.Add("groupId", typeof(long));
-            table.Columns.Add("instanceUID", typeof(String));
-            table.Columns.Add("name", typeof(String));
-            table.Columns.Add("description", typeof(String));
-            table.Columns.Add("path", typeof(String));
-            table.Columns.Add("active", typeof(bool));
-            table.Columns.Add("regionWeek", typeof(String));
-        }
+        {   }
 
         /**
          * Check the uniqueness of a set of data rows.
@@ -89,7 +80,22 @@ namespace NuoTest
         }
 
         //@Override
-        protected override DataRow mapOut(Data data) {
+        protected override DataRow mapOut(Data data, SqlSession session) {
+            DataTable table;
+            if (! session.BatchTable.TryGetValue(tableName, out table))
+            {
+                table = new DataTable(tableName);
+                session.BatchTable[tableName] = table;
+
+                table.Columns.Add("groupId", typeof(long));
+                table.Columns.Add("instanceUID", typeof(String));
+                table.Columns.Add("name", typeof(String));
+                table.Columns.Add("description", typeof(String));
+                table.Columns.Add("path", typeof(String));
+                table.Columns.Add("active", typeof(bool));
+                table.Columns.Add("regionWeek", typeof(String));
+            }
+
             DataRow row = table.NewRow();
 
             row[0] = data.GroupId;

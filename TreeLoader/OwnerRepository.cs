@@ -16,12 +16,7 @@ namespace NuoTest
 
         //[Override]
         public override void init()
-        {
-            table = new DataTable(tableName);
-            table.Columns.Add("name", typeof(String));
-            table.Columns.Add("masterAliasId", typeof(String));
-            table.Columns.Add("region", typeof(String));
-        }
+        {   }
 
         //@Override
         protected override Owner mapIn(DbDataReader row) {
@@ -33,7 +28,18 @@ namespace NuoTest
         }
 
         //@Override
-        protected override DataRow mapOut(Owner owner) {
+        protected override DataRow mapOut(Owner owner, SqlSession session) {
+            DataTable table;
+            if (! session.BatchTable.TryGetValue(tableName, out table))
+            {
+                table = new DataTable(tableName);
+                session.BatchTable[tableName] = table;
+
+                table.Columns.Add("name", typeof(String));
+                table.Columns.Add("masterAliasId", typeof(String));
+                table.Columns.Add("region", typeof(String));
+            }
+
             DataRow row = table.NewRow();
             row[0] = owner.Name;
             row[1] = owner.MasterAlias;
