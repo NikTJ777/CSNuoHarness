@@ -262,9 +262,9 @@ namespace NuoTest
             {
                 using (DbCommand cmd = getStatement(sql))
                 {
-                    foreach (Object o in row.ItemArray)
+                    for (int index = 0; index < row.ItemArray.Length; index++)
                     {
-                        cmd.Parameters.Add(o);
+                        cmd.Parameters[index].Value = row.ItemArray[index];
                     }
 
                     return update(cmd);
