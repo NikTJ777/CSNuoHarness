@@ -103,6 +103,11 @@ namespace NuoTest
             queryConnectionString = connectionStringBuilder.ConnectionString;
         }
 
+        public static long activeSessions()
+        {
+            return sessions.Count;
+        }
+
         public SqlSession(Mode mode)
         {
             this.mode = mode;
@@ -270,7 +275,12 @@ namespace NuoTest
 
         public long update(DbCommand update)
         {
-            return (long)update.ExecuteNonQuery();
+            //return (long)update.ExecuteScalar();
+            //return (long)update.ExecuteNonQuery();
+            using (DbDataReader keys = update.ExecuteReader())
+            {
+                return (keys.Read() ? keys.GetInt64(0) : 0);
+            }
         }
 
         protected DbConnection Connection()
@@ -312,17 +322,21 @@ namespace NuoTest
 
         protected void closeStatements()
         {
-            if (batch != null)
+            if (mode == Mode.BATCH && batch != null)
             {
                 try
                 {
+                    long batchStart = Environment.TickCount;
                     NuoDbBulkLoader loader = new NuoDbBulkLoader(updateConnectionString);
-                    loader.DestinationTableName = batch[0].Table.TableName;
-                    foreach (DataColumn c in batch[0].Table.Columns)
-                    {
-                        loader.ColumnMappings.Add(c.ColumnName, c.ColumnName);
-                    }
-                    loader.WriteToServer(batch.ToArray());
+                    //{
+                        loader.DestinationTableName = batch[0].Table.TableName;
+                        foreach (DataColumn c in batch[0].Table.Columns)
+                        {
+                            loader.ColumnMappings.Add(c.ColumnName, c.ColumnName);
+                        }
+                        loader.WriteToServer(batch.ToArray());
+                    //}
+                    log.info("Batch commit complete duration={0}", Environment.TickCount - batchStart);
                 }
                 catch (Exception e)
                 {

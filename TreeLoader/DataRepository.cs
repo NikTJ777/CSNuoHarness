@@ -10,6 +10,8 @@ namespace NuoTest
 {
     class DataRepository : AbstractRepository<Data>
     {
+        Logger dataLog = Logger.getLogger("DataRepository");
+
         public DataRepository()
             : base("NuoTest.T_DATA", "groupId", "instanceUID", "name", "description", "path", "active", "regionWeek")
         { }
@@ -48,15 +50,23 @@ namespace NuoTest
             Data data = dataRows.ElementAt(0).Value;
 
             //String sql = String.format(findBySql, getTableName(), "groupId", String.valueOf(data.getGroup()));
+            long queryStart = Environment.TickCount;
             using (DbDataReader existing = queryBy("groupId", data.GroupId)) {
+                dataLog.info("Uniqueness query complete; duration={0} ms", Environment.TickCount - queryStart);
                 try {
+                    long readStart = Environment.TickCount;
+                    //for (int rx = 0; rx < total; rx++) {
                     while (existing.Read()) {
+                        //existing.GetString(2);
+                        //if (dataRows.TryGetValue("xxyyz", out data))
                         if (dataRows.TryGetValue(existing.GetString(2), out data))
                         {
                             data.Active = false;
                             total--;
                         }
+                        
                     }
+                    dataLog.info("Uniqueness loop checked {0} items; duration={1} ms", dataRows.Values.Count, Environment.TickCount - readStart);
 
                     return total;
                 } catch (/*SQL*/ Exception e) {

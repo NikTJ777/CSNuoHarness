@@ -165,6 +165,7 @@ namespace NuoTest
                 sql.Append(String.Format(" OR {0} = '{1}'", column, param[px].ToString()));
             }
 
+            //log.info("queryBy {0}", sql.ToString());
             return SqlSession.getCurrent().getStatement(sql.ToString()).ExecuteReader();
         }
 

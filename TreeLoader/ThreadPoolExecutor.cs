@@ -96,36 +96,48 @@ namespace NuoTest
 
                 do
                 {
+                    log.info("Looking for work...");
+
                     if (nextInLine != null) {
+                        log.info("taking nextInLine...");
                         task = nextInLine;
                         nextInLine = null;
                     } else {
                         // block on next task
+                        log.info("wait and get next...");
                         task = executor.queue.Take();
                     }
 
                     if (task != null)
                     {
-                        // find sleeptime (if task starttime is still in the future)
-                        int sleeptime = task.starttime - Environment.TickCount;
-                        while (sleeptime > 0 && executor.queue.TryTake(out nextInLine)) {
-                            if (nextInLine.starttime < task.starttime)
+                        if (task.starttime > 0)
+                        {
+                            // find sleeptime (if task starttime is still in the future)
+                            int sleeptime = task.starttime - Environment.TickCount;
+                            while (sleeptime > 0 && executor.queue.TryTake(out nextInLine))
                             {
-                                ExecutorTask temp = task;
-                                task = nextInLine;
-                                nextInLine = temp;
-                                sleeptime = task.starttime - Environment.TickCount;
-                            } else {
-                                break;
+                                if (nextInLine.starttime < task.starttime)
+                                {
+                                    ExecutorTask temp = task;
+                                    task = nextInLine;
+                                    nextInLine = temp;
+                                    sleeptime = task.starttime - Environment.TickCount;
+                                }
+                                else
+                                {
+                                    break;
+                                }
+                            }
+
+                            // sleep until starttime
+                            if (sleeptime > 0)
+                            {
+                                log.info("Scheduled task. Sleeping for {0} ms", sleeptime);
+                                Thread.Sleep(sleeptime);
                             }
                         }
 
-                        // sleep until starttime
-                        if (sleeptime > 0)
-                        {
-                            Thread.Sleep(sleeptime);
-                        }
-
+                        log.info("running task...");
                         try { task.task.run(); }
                         catch (Exception e)
                         {
@@ -135,6 +147,7 @@ namespace NuoTest
 
                             throw e;
                         }
+                        log.info("task complete.");
                     }
 
                 } while (! executor.queue.IsAddingCompleted);

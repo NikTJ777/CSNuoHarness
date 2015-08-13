@@ -125,6 +125,9 @@ namespace NuoTest
         // create app properties, using the default values as initial values
         appProperties = new Dictionary<String, String>(defaultProperties);
 
+        // parse command line on top of defaults
+        parseCommandLine(args, appProperties);
+
         // load properties from application.properties file over the defaults
         loadProperties(appProperties, PROPERTIES_PATH);
 
@@ -347,12 +350,17 @@ namespace NuoTest
 
                 //queueSize = ((ThreadPoolExecutor) insertExecutor).getQueue().size();
                 //queueSize = totalScheduled = totalInserts;
-                queueSize = insertExecutor.QueueSize();
-                while (maxQueued >= 0 && queueSize > maxQueued) {
+                while (maxQueued >= 0 && insertExecutor.QueueSize() > maxQueued) {
                     //queueSize = totalScheduled = totalInserts;
                     queueSize = insertExecutor.QueueSize();
                     appLog.info("Queue size {0} is over limit {1} - sleeping", queueSize, maxQueued);
                     Thread.Sleep(1 * Millis / (queueSize > 1 ? 2 : 20));
+
+                    if (insertExecutor.QueueSize() > maxQueued)
+                    {
+                        appLog.info("Queue still has {0} items; there are {1} active SqlSessions",
+                            insertExecutor.QueueSize(), SqlSession.activeSessions());
+                    }
                 }
 
                 // queueSize = ((ThreadPoolExecutor) insertExecutor).getQueue().size();
@@ -582,6 +590,8 @@ namespace NuoTest
             long eventId;
             long groupId;
 
+            appLog.info("starting generation - getting first session...");
+
             using (SqlSession session = new SqlSession(SqlSession.Mode.AUTO_COMMIT)) {
                 ownerId = generateOwner();
                 Console.Out.WriteLine("\n------------------------------------------------");
@@ -614,12 +624,17 @@ namespace NuoTest
                     dataRows.Add(data.InstanceUID, data);
                 }
 
+                long uniquestart = Environment.TickCount;
                 using (SqlSession session = new SqlSession(SqlSession.Mode.AUTO_COMMIT)) {
                     long uniqueRows = ctrl.dataRepository.checkUniqueness(dataRows);
 
-                    appLog.info("{0} rows out of {1} new rows are unique", uniqueRows, dataCount);
+                    appLog.info("{0} rows out of {1} new rows are unique (check={2} ms)", uniqueRows, dataCount, Environment.TickCount - uniquestart);
+
+                    long updateStart = Environment.TickCount;
                     ctrl.groupRepository.update(groupId, "dataCount", uniqueRows);
+                    appLog.info("Group.datCount update; duration={0} ms", Environment.TickCount - updateStart);
                 }
+                appLog.info("Unique check time={0} ms", Environment.TickCount - uniquestart);
 
                 long dataStart = Environment.TickCount;
                 int count = 0;
@@ -700,7 +715,7 @@ namespace NuoTest
 
         private void report(String name, int count, long duration) {
             double rate = (count > 0 && duration > 0 ? Millis2Seconds * count / duration : 0);
-            appLog.info("Run {0}; generated {1} ({2:N} records); duration={3:F2} ms; rate={4:F2}", unique, name, count, duration, rate);
+            appLog.info("Run {0}; generated {1} ({2} records); duration={3:F2} ms; rate={4:F2}", unique, name, count, duration, rate);
         }
     }
 
