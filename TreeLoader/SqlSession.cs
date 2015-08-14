@@ -348,7 +348,7 @@ namespace NuoTest
                     //}
                     long duration = Environment.TickCount - batchStart;
                     double rate = (batch.Count > 0 && duration > 0 ? 1000.0 * batch.Count / duration : 0);
-                    log.info("Batch commit complete duration={0} ms; rate={1:F2} ips", duration, rate);
+                    log.info("Batch commit complete duration={0:N0} ms; rate={1:F2} ips", duration, rate);
                 }
                 catch (Exception e)
                 {

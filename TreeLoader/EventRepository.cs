@@ -47,6 +47,12 @@ namespace NuoTest
             try {
 
                 Event ev = findById(eventId);
+                if (ev == null)
+                {
+                    log.info("No Event with id {0}", eventId);
+                    return null;
+                }
+
                 Owner owner = ownerRepository.findById(ev.OwnerId);
                 result = new EventDetails(ev, owner);
 

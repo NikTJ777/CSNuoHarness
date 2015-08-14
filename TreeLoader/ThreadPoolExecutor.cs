@@ -38,7 +38,7 @@ namespace NuoTest
 
         public void schedule(T task, int starttime)
         {
-            queue.Add(new ExecutorTask(task, starttime));
+            queue.Add(new ExecutorTask(task, Environment.TickCount + starttime));
         }
 
         public long QueueSize()
