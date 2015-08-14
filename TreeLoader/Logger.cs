@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
 
 /**
@@ -41,7 +42,7 @@ namespace NuoTest
         {
             String now = DateTime.Now.ToString("MMM dd, yyyy hh:mm:ss tt");
             //Console.WriteLine("{0} {1}\n{2}: {3}", new object[] {now, name, level, String.Format(msg, args)});
-            Console.WriteLine("{0} {1}\n{2}: {3}", now, name, level, String.Format(msg, args) );
+            Console.WriteLine("{0} {1} - {2} \n{3}: {4}", now, Thread.CurrentThread.Name, name, level, String.Format(msg, args) );
         }
 
     }

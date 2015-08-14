@@ -61,7 +61,11 @@ namespace NuoTest
             cmd.Parameters[0].Value = id;
             using (DbDataReader row = cmd.ExecuteReader()) {
                 try {
-                    if (row == null || row.Read() == false) return null;
+                    if (row == null || row.Read() == false)
+                    {
+                        log.info("No persistent object found for {0} key {1}", tableName, id);
+                        return null;
+                    }
 
                     return mapIn(row);
                 } catch (Exception e) {

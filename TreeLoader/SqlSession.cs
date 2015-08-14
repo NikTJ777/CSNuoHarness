@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Threading;
 using System.Collections.Generic;
+using System.Collections.Concurrent;
 using System.Data;
 using System.Data.Common;
 using System.Linq;
@@ -28,7 +29,7 @@ namespace NuoTest
         private static String queryConnectionString;
 
         private static ThreadLocal<SqlSession> current = new ThreadLocal<SqlSession>();
-        private static Dictionary<SqlSession, String> sessions;
+        private static ConcurrentDictionary<SqlSession, String> sessions;
         private static IsolationLevel updateIsolation;
 
         private static readonly String DBDRIVER = "NuoDB.Data.Client";
@@ -43,7 +44,7 @@ namespace NuoTest
 
         public static void init(Dictionary<String, String> properties, int maxThreads)
         {
-            sessions = new Dictionary<SqlSession, String>();
+            sessions = new ConcurrentDictionary<SqlSession, String>(maxThreads, maxThreads);
 
             dataSource = DbProviderFactories.GetFactory(properties["dotnet.driver"]);
 
@@ -130,7 +131,7 @@ namespace NuoTest
 
             //session = new SqlSession(mode);
             current.Value = this;
-            sessions.Add(this, Thread.CurrentThread.Name);
+            sessions.TryAdd(this, Thread.CurrentThread.Name);
 
             //return session;
         }
@@ -174,7 +175,8 @@ namespace NuoTest
             closeStatements();
             closeConnection();
             current.Value = null;
-            sessions.Remove(this);
+            String key;
+            sessions.TryRemove(this, out key);
         }
 
         public DbCommand getStatement(String sql)
@@ -344,7 +346,9 @@ namespace NuoTest
                     loader.WriteToServer(batch.ToArray());
                     //loader.WriteToServer(BatchTable);
                     //}
-                    log.info("Batch commit complete duration={0}", Environment.TickCount - batchStart);
+                    long duration = Environment.TickCount - batchStart;
+                    double rate = (batch.Count > 0 && duration > 0 ? 1000.0 * batch.Count / duration : 0);
+                    log.info("Batch commit complete duration={0} ms; rate={1:F2} ips", duration, rate);
                 }
                 catch (Exception e)
                 {

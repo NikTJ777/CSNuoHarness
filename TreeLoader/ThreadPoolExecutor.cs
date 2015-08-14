@@ -10,15 +10,18 @@ namespace NuoTest
 {
     class ThreadPoolExecutor<T> where T : Runnable
     {
+        internal readonly String name;
         internal readonly int maxThreads;
         internal BlockingCollection<ExecutorTask> queue;
         internal Semaphore semaphore;
 
         private static Logger log = Logger.getLogger("ThreadPoolExecutor");
 
-        public ThreadPoolExecutor(int maxThreads)
+        public ThreadPoolExecutor(String name, int maxThreads)
         {
+            this.name = name;
             this.maxThreads = maxThreads;
+
             queue = new BlockingCollection<ExecutorTask>();
             semaphore = new Semaphore(maxThreads, maxThreads);
 
@@ -67,6 +70,7 @@ namespace NuoTest
             ExecutorThread task = new ExecutorThread(this);
             ThreadStart threadDelegate = new ThreadStart(task.Run);
             Thread newThread = new Thread(threadDelegate);
+            newThread.Name = String.Format("Thread-{0}-{1}", name, Environment.TickCount);
             newThread.Start();
         }
 
@@ -122,6 +126,7 @@ namespace NuoTest
 
                     if (task != null)
                     {
+                        log.info("task starttime={0}", task.starttime);
                         if (task.starttime > 0)
                         {
                             // find sleeptime (if task starttime is still in the future)
@@ -153,11 +158,14 @@ namespace NuoTest
                         try { task.task.run(); }
                         catch (Exception e)
                         {
-                            log.info("Exception in ThreadPool thread: {0}", e.ToString());
+                            log.info("Exception in ThreadPool thread: {0}\n{1}",
+                                e.ToString(), e.StackTrace.ToString());
+
                             executor.semaphore.Release();
                             executor.addThread();
 
-                            throw e;
+                            return;
+                            //throw e;
                         }
                         //log.info("task complete.");
                     }

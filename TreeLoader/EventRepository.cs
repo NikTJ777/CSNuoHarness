@@ -54,13 +54,12 @@ namespace NuoTest
                 result.Groups = groups;
 
                 log.info("retrieved {0} groups", groups.Count());
-
-                long[] groupIds = new long[groups.Count()];
+                Object[] groupIds = new Object[groups.Count()];
                 for (int gx = 0; gx < groupIds.Length; gx++) {
                     groupIds[gx] = groups[gx].Id;
                 }
 
-                List<Data> data = dataRepository.findAllBy("groupId", groupIds);
+                List<Data> data = dataRepository.findAllBy("groupId", (Object[]) groupIds);
                 result.Data = data;
 
                 log.info("retrieved {0} data records", data.Count());

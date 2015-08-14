@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Collections.Concurrent;
 using System.IO;
 using System.Linq;
 using System.Reflection;
@@ -225,8 +226,8 @@ namespace NuoTest
         //insertExecutor = Executors.newFixedThreadPool(insertThreads);
         //queryExecutor= Executors.newScheduledThreadPool(queryThreads);
 
-        insertExecutor = new ThreadPoolExecutor<EventGenerator>(insertThreads);
-        queryExecutor = new ThreadPoolExecutor<EventViewTask>(queryThreads);
+        insertExecutor = new ThreadPoolExecutor<EventGenerator>("INSERT", insertThreads);
+        queryExecutor = new ThreadPoolExecutor<EventViewTask>("QUERY", queryThreads);
 
         string checkOnly;
         if (appProperties.TryGetValue("check.config", out checkOnly) && checkOnly.Equals("true", StringComparison.InvariantCultureIgnoreCase)) {
