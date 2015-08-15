@@ -37,6 +37,7 @@ namespace NuoTest
     bool initDb = false;
     bool queryOnly = false;
 
+    internal TxModel txModel;
     internal SqlSession.Mode bulkCommitMode;
 
     internal Int64 totalScheduled = 0;
@@ -76,6 +77,7 @@ namespace NuoTest
     public const String DB_INIT =            "db.init";
     public const String DB_INIT_SQL =        "db.init.sql";
     public const String DB_SCHEMA =          "db.schema";
+    public const String TX_MODEL =           "tx.model";
     public const String BULK_COMMIT_MODE =   "bulk.commit.mode";
     public const String QUERY_ONLY =         "query.only";
     public const String QUERY_BACKOFF =      "query.backoff";
@@ -83,7 +85,9 @@ namespace NuoTest
     public const String CONNECTION_TIMEOUT = "connection.timeout";
     public const String DB_PROPERTY_PREFIX = "db.property.prefix";
 
-    internal static Logger appLog = Logger.getLogger("JNuoTest");
+    internal enum TxModel { DISCRETE, UNIFIED };
+
+    internal static Logger appLog = Logger.getLogger("CSNuoTest");
     internal static Logger insertLog = Logger.getLogger("InsertLog");
     internal static Logger viewLog = Logger.getLogger("EventViewer");
 
@@ -113,6 +117,7 @@ namespace NuoTest
         defaultProperties.Add(MIN_BURST, "0");
         defaultProperties.Add(MAX_BURST, "0");
         defaultProperties.Add(RUN_TIME, "5");
+        defaultProperties.Add(TX_MODEL, "DISCRETE");
         defaultProperties.Add(BULK_COMMIT_MODE, "BATCH");
         defaultProperties.Add(DB_INIT, "false");
         defaultProperties.Add(QUERY_ONLY, "false");
@@ -143,7 +148,7 @@ namespace NuoTest
             
         String helpOption;
         if (appProperties.TryGetValue("help", out helpOption) && "true".Equals(helpOption, StringComparison.InvariantCultureIgnoreCase)) {
-            Console.Out.WriteLine("\njava -jar <jarfilename> [option=value [, option=value, ...] ]\nwhere <option> can be any of:\n");
+            Console.Out.WriteLine("\nCSNuoTest [option=value [, option=value, ...] ]\nwhere <option> can be any of:\n");
 
             foreach (String key in keys) {
                 Console.Out.WriteLine(String.Format("{0}\t\t\t\t(default={1})", key, defaultProperties[key]));
@@ -219,6 +224,9 @@ namespace NuoTest
 
         eventRepository = new EventRepository(ownerRepository, groupRepository, dataRepository);
         eventRepository.init();
+
+        if (!Enum.TryParse<TxModel>(appProperties[TX_MODEL], out txModel))
+            txModel = TxModel.DISCRETE;
 
         if (!Enum.TryParse<SqlSession.Mode>(appProperties[BULK_COMMIT_MODE], out bulkCommitMode))
             bulkCommitMode = SqlSession.Mode.BATCH;
@@ -593,6 +601,9 @@ namespace NuoTest
 
             //appLog.log("starting generation - getting first session...");
 
+            // optionally start an enclosing session/transaction
+            SqlSession outerTx = (ctrl.txModel == TxModel.UNIFIED ? new SqlSession(SqlSession.Mode.TRANSACTIONAL) : null);
+
             using (SqlSession session = new SqlSession(SqlSession.Mode.AUTO_COMMIT)) {
                 ownerId = generateOwner();
                 Console.Out.WriteLine("\n------------------------------------------------");
@@ -653,6 +664,9 @@ namespace NuoTest
 
                 report("Data Group", dataCount, Environment.TickCount - dataStart);
             }
+
+            // close the enclosing tx if it is open
+            if (outerTx != null) outerTx.Dispose();
 
             long duration = Environment.TickCount - start;
             report("All Data", total, duration);

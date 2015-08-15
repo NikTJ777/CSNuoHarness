@@ -14,8 +14,9 @@ namespace NuoTest
 {
     class SqlSession : IDisposable
     {
-        private Mode mode;
-        private Mode commitMode;
+        private readonly Mode mode;
+        private readonly Mode commitMode;
+        private readonly SqlSession parent;
 
         private DbConnection connection;
         private DbTransaction transaction;
@@ -122,12 +123,8 @@ namespace NuoTest
 
             BatchTable = new Dictionary<String, DataTable>(8);
 
-            SqlSession session = current.Value;
-            if (session != null)
-            {
-                session.Dispose();
-                throw new PersistenceException("Previous session for this thread was not correctly closed");
-            }
+            // if there is an existing session, then make it our parent
+            parent = current.Value;
 
             //session = new SqlSession(mode);
             current.Value = this;
@@ -163,20 +160,29 @@ namespace NuoTest
 
         public void rollback()
         {
-            if (transaction != null && commitMode != Mode.AUTO_COMMIT)
+            // only rollback our own tx - parent is a larger scope
+
+            if (transaction != null && commitMode == Mode.TRANSACTIONAL)
             {
-                try { transaction.Rollback(); }
-                catch (Exception) { }
+                try {
+                    transaction.Rollback();
+                    transaction.Dispose();
+                } catch (Exception) { }
             }
+
+            transaction = null;
         }
 
         public void Dispose()
         {
+            // make my parent active again (or nothing acive if we are top-level)
+            current.Value = parent;
+
+            String name;
+            sessions.TryRemove(this, out name);
+
             closeStatements();
             closeConnection();
-            current.Value = null;
-            String key;
-            sessions.TryRemove(this, out key);
         }
 
         public DbCommand getStatement(String sql)
@@ -187,6 +193,10 @@ namespace NuoTest
                 //batch.Clear();
                 //return batch;
             }
+
+            // delegate to parent if we have one => caching to happen at 1 level
+            if (parent != null)
+                return parent.getStatement(sql);
 
             if (statements == null)
             {
@@ -291,6 +301,10 @@ namespace NuoTest
 
         protected DbConnection Connection()
         {
+            // we share our parent's connection - so delegate to parent
+            if (parent != null)
+                return parent.Connection();
+
             if (connection == null)
             {
                 connection = dataSource.CreateConnection();
@@ -328,6 +342,9 @@ namespace NuoTest
 
         protected void closeStatements()
         {
+            // only close local resources (do NOT close parent)
+
+            // any batch is local to this SqlSession, so close it now
             if (mode == Mode.BATCH && batch != null )
             {
                 try
@@ -353,9 +370,7 @@ namespace NuoTest
                 catch (Exception e)
                 {
                     log.info("Error during bulk update: {0}", e.Message);
-                }
-                finally
-                {
+                    //throw new PersistenceException(e, "Error in bulk update {0}", e.Message);
                 }
             }
 
@@ -383,9 +398,11 @@ namespace NuoTest
 
         protected void closeConnection()
         {
+            // only close local resources - never close parent
+
             if (connection != null)
             {
-                if (transaction != null && commitMode != Mode.AUTO_COMMIT)
+                if (transaction != null && commitMode == Mode.TRANSACTIONAL)
                 {
                     try { transaction.Commit(); }
                     catch (/*SQL*/Exception e)
