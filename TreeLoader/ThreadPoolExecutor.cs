@@ -56,13 +56,16 @@ namespace NuoTest
 
             // start the timeout timer...
             ThreadStart timer = new ThreadStart(() => { Thread.Sleep(timeout); semaphore.Release(maxThreads); });
-            new Thread(timer).Start();
+            Thread timerThread = new Thread(timer);
+            timerThread.Start();
 
             // wait for all threads to exit
             for (int tx = 0; tx < maxThreads; tx++)
             {
                 semaphore.WaitOne();
             }
+
+            timerThread.Abort();
         }
 
         protected void addThread()

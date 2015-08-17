@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Diagnostics;
 using System.Collections.Generic;
 using System.Collections.Concurrent;
 using System.IO;
@@ -43,15 +44,18 @@ namespace NuoTest
     internal Int64 totalScheduled = 0;
     internal Int64 totalInserts = 0;
     internal Int64 totalInsertTime = 0;
+    //private  ThreadLocal<Stopwatch> insertTimer = new ThreadLocal<Stopwatch>();
 
     internal Int64 totalQueries = 0;
     internal Int64 totalQueryRecords = 0;
     internal Int64 totalQueryTime = 0;
+    //private ThreadLocal<Stopwatch> queryTimer = new ThreadLocal<Stopwatch>();
 
     long unique;
 
     long totalEvents;
-    long wallTime;
+    //long wallTime;
+    internal Stopwatch wallTimer = new Stopwatch();
 
     private Random random = new Random();
 
@@ -268,7 +272,7 @@ namespace NuoTest
      */
     public void run()
     {
-        long start = Environment.TickCount;
+        long start = wallTimer.ElapsedMilliseconds;
         long endTime = start + runTime;
         long now;
 
@@ -276,7 +280,7 @@ namespace NuoTest
         long averageSleep = (long) (Millis2Seconds / averageRate);
 
         totalEvents = 0;
-        wallTime = 0;
+        wallTimer.Start();
 
         double burstRate = 0.0;
         int burstSize = 0;
@@ -289,22 +293,26 @@ namespace NuoTest
         // just run some queries
         if (queryOnly) {
 
+            appLog.info("Query-Only...");
+
             long eventId = 1;
 
-            while (Environment.TickCount < endTime) {
+            while (wallTimer.ElapsedMilliseconds < endTime) {
                 EventViewTask viewTask = new EventViewTask(this, eventId++);
                 //queryExecutor.schedule(new EventViewTask(this, eventId++), 2, TimeUnit.MILLISECONDS);
                 queryExecutor.schedule(viewTask, 2);
 
                 totalEvents++;
+                double wallTime = (1.0 * wallTimer.ElapsedTicks) / Stopwatch.Frequency;
+                double queryTime = (1.0 * totalQueryTime) / Stopwatch.Frequency;
 
                 appLog.info("Processed {0:N} events containing {1:N} records in {2:F2} secs"
                                 + "\n\tThroughput:\t{3:F2} events/sec at {4:F2} ips;"
                                 + "\n\tSpeed:\t\t{5:N} inserts in {6:F2} secs = {7:F2} ips"
                                 + "\n\tQueries:\t{8:N} queries got {9:N} records in {10:F2} secs at {11:F2} qps",
-                        totalEvents, totalInserts, (wallTime / Millis2Seconds), (Millis2Seconds * totalEvents / wallTime), (Millis2Seconds * totalInserts / wallTime),
-                        totalInserts, (totalInsertTime / Nano2Seconds), (Nano2Seconds * totalInserts / totalInsertTime),
-                        totalQueries, totalQueryRecords, (totalQueryTime / Nano2Seconds), (Nano2Seconds * totalQueries / totalQueryTime));
+                        totalEvents, totalInserts, wallTime, (totalEvents / wallTime), 0,
+                        totalInserts, 0, 0,
+                        totalQueries, totalQueryRecords, queryTime, (totalQueries / queryTime));
 
                 //if (((ThreadPoolExecutor) queryExecutor).getQueue().size() > 10) {
                 if (totalEvents + 10 > totalQueries) {
@@ -329,7 +337,7 @@ namespace NuoTest
             long queueSize = insertExecutor.QueueSize();
             appLog.info("Event scheduled. Queue size={0}", queueSize);
 
-            now = Environment.TickCount;
+            now = wallTimer.ElapsedMilliseconds;
             currentRate = (Millis2Seconds * totalEvents) / (now - start);
 
             appLog.info("now={0}; endTime={1}; elapsed={2}; time left={3}", now, endTime, now - start, endTime - now);
@@ -379,18 +387,21 @@ namespace NuoTest
 
             }
 
-            wallTime = Environment.TickCount - start;
+            //wallTime = Environment.TickCount - start;
+            double wallTime = 1.0 * wallTimer.ElapsedTicks / Stopwatch.Frequency;
+            double insertTime = (1.0 * totalInsertTime) / Stopwatch.Frequency;
+            double queryTime = (1.0 * totalQueryTime) / Stopwatch.Frequency;
 
             appLog.info("Processed {0:N0} events containing {1:N0} records in {2:F2} secs"
                             + "\n\tThroughput:\t{3:F2} events/sec at {4:F2} ips;"
                             + "\n\tSpeed:\t\t{5:N0} inserts in {6:F2} secs = {7:F2} ips"
                             + "\n\tQueries:\t{8:N0} queries got {9:N} records in {10:F2} secs at {11:F2} qps",
-                    totalEvents, totalInserts, (wallTime / Millis2Seconds), (Millis2Seconds * totalEvents / wallTime), (Millis2Seconds * totalInserts / wallTime),
-                    totalInserts, (totalInsertTime / Millis2Seconds), (Millis2Seconds * totalInserts / totalInsertTime),
-                    totalQueries, totalQueryRecords, (totalQueryTime / Millis2Seconds), (Millis2Seconds * totalQueries / totalQueryTime));
+                    totalEvents, totalInserts, wallTime, (totalEvents / wallTime), (totalInserts / wallTime),
+                    totalInserts, (insertTime), (totalInserts / insertTime),
+                    totalQueries, totalQueryRecords, totalQueryTime, (totalQueries / queryTime));
 
 
-        } while (Environment.TickCount < endTime);
+        } while (wallTimer.ElapsedMilliseconds < endTime);
     }
 
     public void Dispose()
@@ -411,14 +422,18 @@ namespace NuoTest
         //Int64 queueSize = totalScheduled - totalInserts;
         long queueSize = insertExecutor.QueueSize();
 
+        double wallTime = (1.0 * wallTimer.ElapsedTicks) / Stopwatch.Frequency;
+        double insertTime = (1.0 * totalInsertTime) / Stopwatch.Frequency;
+        double queryTime = (1.0 * totalQueryTime) / Stopwatch.Frequency;
+
         appLog.info("Exiting with {0} items remaining in the queue.\n\tProcessed {1:N0} events containing {2:N0} records in {3:F2} secs"
                         + "\n\tThroughput:\t{4:F2} events/sec at {5:F2} ips;"
                         + "\n\tSpeed:\t\t{6:N0} inserts in {7:F2} secs = {8:F2} ips"
                         + "\n\tQueries:\t{9:N0} queries got {10:N} records in {11:F2} secs at {12:F2} qps",
                 queueSize,
-                totalEvents, totalInserts, (wallTime / Millis2Seconds), (Millis2Seconds * totalEvents / wallTime), (Millis2Seconds * totalInserts / wallTime),
-                totalInserts, (totalInsertTime / Millis2Seconds), (Millis2Seconds * totalInserts / totalInsertTime),
-                totalQueries, totalQueryRecords, (totalQueryTime / Millis2Seconds), (Millis2Seconds * totalQueries / totalQueryTime));
+                totalEvents, totalInserts, wallTime, (totalEvents / wallTime), (totalInserts / wallTime),
+                totalInserts, insertTime, (totalInserts / insertTime),
+                totalQueries, totalQueryRecords, queryTime, (totalQueries / queryTime));
 
         //appLog.info(String.format("Exiting with %d items remaining in the queue.\n\tProcessed %,d events containing %,d records in %.2f secs\n\tThroughput:\t%.2f events/sec at %.2f ips;\n\tSpeed:\t\t%,d inserts in %.2f secs = %.2f ips",
         //        ((ThreadPoolExecutor) insertExecutor).getQueue().size(),
@@ -593,7 +608,23 @@ namespace NuoTest
 
         public void run() {
 
-            long start = Environment.TickCount;
+            /*
+            // global insertTimer is a ThreadLocal - initialise for this thread
+            if (ctrl.insertTimer.Value == null)
+            {
+                ctrl.insertTimer.Value = new Stopwatch();
+            }
+            Stopwatch timer = ctrl.insertTimer.Value;
+            */
+
+            Stopwatch timer = ctrl.wallTimer;
+
+            //long start = Environment.TickCount;
+            long start = timer.ElapsedTicks;
+            //timer.Start();
+
+            long workStart = start;
+            long workTime = 0;
 
             long ownerId;
             long eventId;
@@ -607,10 +638,11 @@ namespace NuoTest
             using (SqlSession session = new SqlSession(SqlSession.Mode.AUTO_COMMIT)) {
                 ownerId = generateOwner();
                 Console.Out.WriteLine("\n------------------------------------------------");
-                report("Owner", 1, Environment.TickCount - start);
+                report("Owner", 1, timer.ElapsedTicks - start);
 
                 eventId = generateEvent(ownerId);
             }
+            workTime += timer.ElapsedTicks - workStart;
 
             int groupCount = ctrl.minGroups + ctrl.random.Next(ctrl.maxGroups - ctrl.minGroups);
             appLog.info("Creating {0} groups", groupCount);
@@ -623,6 +655,7 @@ namespace NuoTest
             int dataCount = (ctrl.minData + ctrl.random.Next(ctrl.maxData - ctrl.minData)) / groupCount;
             appLog.info("Creating {0} Data records @ {1} records per group", dataCount * groupCount, dataCount);
 
+            workStart = timer.ElapsedTicks;
             for (int gx = 0; gx < groupCount; gx++) {
                 using (SqlSession session = new SqlSession(SqlSession.Mode.AUTO_COMMIT)) {
                     groupId = generateGroup(eventId, gx);
@@ -636,19 +669,22 @@ namespace NuoTest
                     dataRows.Add(data.InstanceUID, data);
                 }
 
-                long uniquestart = Environment.TickCount;
+                long uniquestart = timer.ElapsedTicks;
                 using (SqlSession session = new SqlSession(SqlSession.Mode.AUTO_COMMIT)) {
                     long uniqueRows = ctrl.dataRepository.checkUniqueness(dataRows);
 
-                    appLog.info("{0} rows out of {1} new rows are unique (check={2} ms)", uniqueRows, dataCount, Environment.TickCount - uniquestart);
+                    appLog.info("{0} rows out of {1} new rows are unique", uniqueRows, dataCount);
+                    report("checkUniqueness", dataCount, timer.ElapsedTicks - uniquestart);
 
-                    long updateStart = Environment.TickCount;
+                    long updateStart = timer.ElapsedTicks;
                     ctrl.groupRepository.update(groupId, "dataCount", uniqueRows);
-                    appLog.info("Group.datCount update; duration={0} ms", Environment.TickCount - updateStart);
+                    //appLog.info("Group.datCount update; duration={0} ms", (1.0 * (timer.ElapsedTicks - updateStart)) / Stopwatch.Frequency);
+                    report("Group.dataCount update", 1, timer.ElapsedTicks - updateStart);
                 }
-                appLog.info("Unique check time={0} ms", Environment.TickCount - uniquestart);
+                //appLog.info("Unique check time={0} ms", Environment.TickCount - uniquestart);
+                report("Unique processing", dataCount, timer.ElapsedTicks - uniquestart);
 
-                long dataStart = Environment.TickCount;
+                long dataStart = timer.ElapsedTicks;
                 int count = 0;
                 try {
                     using (SqlSession session = new SqlSession(ctrl.bulkCommitMode)) {
@@ -662,13 +698,15 @@ namespace NuoTest
                     appLog.info("Error inserting data row {0}", e.ToString());
                 }
 
-                report("Data Group", dataCount, Environment.TickCount - dataStart);
+                report("Data Group", dataCount, timer.ElapsedTicks - dataStart);
             }
 
             // close the enclosing tx if it is open
             if (outerTx != null) outerTx.Dispose();
 
-            long duration = Environment.TickCount - start;
+            //timer.Stop();
+
+            long duration = timer.ElapsedTicks - start;
             report("All Data", total, duration);
 
             //totalInserts += total;
@@ -730,8 +768,9 @@ namespace NuoTest
         }
 
         private void report(String name, int count, long duration) {
-            double rate = (count > 0 && duration > 0 ? Millis2Seconds * count / duration : 0);
-            appLog.info("Run {0}; generated {1} ({2} records); duration={3:N0} ms; rate={4:F2}", unique, name, count, duration, rate);
+            double seconds = (1.0 * duration) / Stopwatch.Frequency;
+            double rate = (count > 0 && seconds > 0 ? count / seconds : 0);
+            appLog.info("Run {0}; generated {1} ({2} records); duration={3:N0} ms; rate={4:F2}", unique, name, count, Millis2Seconds * seconds, rate);
         }
     }
 
@@ -751,13 +790,15 @@ namespace NuoTest
 
             Controller.viewLog.info("Running view query for event {0}", eventId);
 
+            Stopwatch timer = ctrl.wallTimer;
+
             try
             {
                 using (SqlSession session = new SqlSession(SqlSession.Mode.READ_ONLY)) {
 
-                    long start = Environment.TickCount;
+                    long start = timer.ElapsedTicks;
                     EventDetails details = ctrl.eventRepository.getDetails(eventId);
-                    long duration = Environment.TickCount - start;
+                    long duration = timer.ElapsedTicks - start;
 
                     if (details != null)
                     {
@@ -765,8 +806,8 @@ namespace NuoTest
                         Interlocked.Add(ref ctrl.totalQueryRecords, details.Data.Count());
                         Interlocked.Add(ref ctrl.totalQueryTime, duration);
 
-                        Controller.appLog.info("Event viewed. Query response time= {0:F2} secs; {1:N} Data objects attached in {2} groups.",
-                                (duration / Controller.Millis2Seconds), details.Data.Count(), details.Groups.Count());
+                        Controller.appLog.info("Event viewed. Query response time= {0:F3} secs; {1:N} Data objects attached in {2} groups.",
+                                (duration / Stopwatch.Frequency), details.Data.Count(), details.Groups.Count());
                     }
                 }
             } catch (PersistenceException e) {
