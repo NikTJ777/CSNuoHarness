@@ -25,8 +25,7 @@ namespace NuoTest
             queue = new BlockingCollection<ExecutorTask>();
             semaphore = new Semaphore(maxThreads, maxThreads);
 
-            for (int tx = 0; tx < maxThreads; tx++)
-            {
+            for (int tx = 0; tx < maxThreads; tx++) {
                 addThread();
             }
         }

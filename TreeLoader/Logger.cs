@@ -17,6 +17,8 @@ namespace NuoTest
     {
         internal static Dictionary<String, Logger> extent = new Dictionary<String, Logger>(32);
 
+        public static bool Silent { get; set; }
+
         internal readonly String name;
 
         private Logger(String name)
@@ -37,22 +39,25 @@ namespace NuoTest
         }
 
         public void log(String msg)
-        { write(msg); }
+        { if (!Silent) write(msg); }
 
         public void info(String msg, params Object[] args)
-        { write("INFO", msg, args); }
+        { if (!Silent) write("INFO", msg, args); }
 
         protected void write(String level, String msg, params Object[] args)
-        { write(level, String.Format(msg, args)); }
+        { if (!Silent) write(level, String.Format(msg, args)); }
 
         protected void write(String msg)
         {
+            if (Silent) return; 
             Console.Write(DateTime.Now.ToString("MMM dd, yyyy hh:mm:ss tt "));
             Console.WriteLine(msg);
         }
 
         protected void write(String level, String msg)
         {
+            if (Silent) return;
+
             StringBuilder builder = new StringBuilder(DateTime.Now.ToString("MMM dd, yyyy hh:mm:ss tt "))
                 .Append(Thread.CurrentThread.Name)
                 .Append(" - ")

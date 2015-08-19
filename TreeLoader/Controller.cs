@@ -61,6 +61,7 @@ namespace NuoTest
 
     private Dictionary<String, String> defaultProperties = new Dictionary<String, String>();
 
+    public const String SILENT =             "silent";
     public const String PROPERTIES_PATH =    "properties.path";
     public const String AVERAGE_RATE =       "timing.rate";
     public const String MIN_VIEW_DELAY =     "timing.min.view.delay";
@@ -246,6 +247,11 @@ namespace NuoTest
             Console.Out.WriteLine("CheckConfig called - nothing to do; exiting.");
             Environment.Exit(0);
         }
+
+        string silent;
+        if (appProperties.TryGetValue("silent", out silent) && silent.Equals("true", StringComparison.InvariantCultureIgnoreCase)) {
+            Logger.Silent = true;
+        }
     }
 
     /**
@@ -406,6 +412,12 @@ namespace NuoTest
 
     public void Dispose()
     {
+        Logger.Silent = false;
+
+        double wallTime = (1.0 * wallTimer.ElapsedTicks) / Stopwatch.Frequency;
+        double insertTime = (1.0 * totalInsertTime) / Stopwatch.Frequency;
+        double queryTime = (1.0 * totalQueryTime) / Stopwatch.Frequency;
+
         if (insertExecutor != null)
         {
             insertExecutor.shutdownNow();
@@ -421,10 +433,6 @@ namespace NuoTest
         // queueSize = ((ThreadPoolExecutor) insertExecutor).getQueue().size();
         //Int64 queueSize = totalScheduled - totalInserts;
         long queueSize = insertExecutor.QueueSize();
-
-        double wallTime = (1.0 * wallTimer.ElapsedTicks) / Stopwatch.Frequency;
-        double insertTime = (1.0 * totalInsertTime) / Stopwatch.Frequency;
-        double queryTime = (1.0 * totalQueryTime) / Stopwatch.Frequency;
 
         appLog.info("Exiting with {0} items remaining in the queue.\n\tProcessed {1:N0} events containing {2:N0} records in {3:F2} secs"
                         + "\n\tThroughput:\t{4:F2} events/sec at {5:F2} ips;"
@@ -484,6 +492,8 @@ namespace NuoTest
         if (path.StartsWith("classpath://")) {
             stream = Assembly.GetExecutingAssembly().GetManifestResourceStream(path.Substring("classpath://".Length));
             appLog.info("loading resource: {0}", path.Substring("classpath://".Length));
+        } else if (path.StartsWith("file://")) {
+            stream = new FileStream(path.Substring("file://".Length).Replace("/", "\\"), FileMode.Open);
         } else {
             stream = new FileStream(path, FileMode.Open);
         }
