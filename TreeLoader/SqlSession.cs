@@ -47,7 +47,10 @@ namespace NuoTest
         {
             sessions = new ConcurrentDictionary<SqlSession, String>(maxThreads, maxThreads);
 
-            dataSource = DbProviderFactories.GetFactory(properties["dotnet.driver"]);
+            // don't use the NuoDb provider that is installed on the system, use the one we
+            // pick from the NuGet repository
+            //dataSource = DbProviderFactories.GetFactory(properties["dotnet.driver"]);
+            dataSource = new NuoDbProviderFactory();
 
             DbConnectionStringBuilder connectionStringBuilder = dataSource.CreateConnectionStringBuilder();
 
@@ -58,7 +61,7 @@ namespace NuoTest
             connectionStringBuilder.Add("Schema", properties["defaultSchema"]);
             connectionStringBuilder.Add("Pooling", "True");
             connectionStringBuilder.Add("MaxLifetime", properties["maxAge"]);
-
+            
             if (maxThreads > 100)
             {
                 connectionStringBuilder.Add("MaxConnections", String.Format("{0}", maxThreads));
@@ -103,6 +106,7 @@ namespace NuoTest
             updateConnectionString = connectionStringBuilder.ConnectionString;
 
             // make this one READ_ONLY
+            connectionStringBuilder.Add("IsolationLevel", "ReadCommitted"); 
             queryConnectionString = connectionStringBuilder.ConnectionString;
         }
 
@@ -369,7 +373,7 @@ namespace NuoTest
                 if (mode == Mode.BATCH && batch != null)
                 {
                     long batchStart = Environment.TickCount;
-                    NuoDbBulkLoader loader = new NuoDbBulkLoader(Connection() as NuoDbConnection);
+                    NuoDbBulkLoader loader = new NuoDbBulkLoader((NuoDbConnection)Connection());
                     //{
                     loader.DestinationTableName = batch[0].Table.TableName;
                     //loader.DestinationTableName = BatchTable.TableName;

@@ -34,7 +34,7 @@
   <ItemGroup>
     <Reference Include="NuoDb.Data.Client, Version=2.3.0.4, Culture=neutral, PublicKeyToken=e49f105b7fb49b38, processorArchitecture=MSIL">
       <Private>True</Private>
-      <HintPath>..\packages\NuoDb.Data.Client.2.3.0.0\lib\net40\NuoDb.Data.Client.dll</HintPath>
+      <HintPath>..\packages\NuoDb.Data.Client.2.3.0.4\lib\net40\NuoDb.Data.Client.dll</HintPath>
     </Reference>
     <Reference Include="System" />
     <Reference Include="System.Core" />
