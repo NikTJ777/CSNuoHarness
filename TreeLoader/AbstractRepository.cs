@@ -15,7 +15,6 @@ namespace NuoTest
         internal String[] columns;
         internal String names;
         internal String replace;
-        //internal DataTable table;
 
         internal int maxRetry = 3;
         internal int retrySleep = 2000;
@@ -29,6 +28,8 @@ namespace NuoTest
         protected static readonly String updateSql = "UPDATE {0} set {1} = ({2}) where id = ?";
 
         protected static readonly String getSql = "SELECT {0} from {1} {2}";
+
+        protected static readonly String callSP = "call {0}";
 
         internal static Logger log = Logger.getLogger("AbstractRepository");
 
@@ -84,8 +85,9 @@ namespace NuoTest
             }
 
             String sql = String.Format(persistSql, tableName, names, replace);
-            for (int retry = 0; ; retry++) {
-                SqlSession session = SqlSession.getCurrent();
+            SqlSession session = SqlSession.getCurrent();
+            for (int retry = 0; ; retry++)
+            {
 
                 try {
                     //DataRow update = session.getStatement(sql);
@@ -99,7 +101,7 @@ namespace NuoTest
                     //log.info("session.update complete; time={0} ms", Environment.TickCount - updateStart);
 
                 } catch (/*NuoDbSQLTransient */Exception te) {
-                    if (retry < maxRetry) {
+                    if (retry < maxRetry && session.retry(te)) {
                         log.info("Retriable exception in persist: {0}; retrying...", te.ToString());
                         try { Thread.Sleep(retrySleep); } catch (/*Interrupted*/Exception) {}
                         continue;

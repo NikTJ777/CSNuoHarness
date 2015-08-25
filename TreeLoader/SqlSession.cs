@@ -33,6 +33,9 @@ namespace NuoTest
         private static ConcurrentDictionary<SqlSession, String> sessions;
         private static IsolationLevel updateIsolation;
 
+        private static int lowestRetriableErrorCode = 40000;
+        private static int highestRetriableErrorCode = 40999;
+
         private static readonly String DBDRIVER = "NuoDB.Data.Client";
 
         private static Logger log = Logger.getLogger("SqlSession");
@@ -118,7 +121,8 @@ namespace NuoTest
         public SqlSession(Mode mode)
         {
             this.mode = mode;
-            commitMode = (mode == Mode.AUTO_COMMIT || mode == Mode.READ_ONLY ? Mode.AUTO_COMMIT : Mode.TRANSACTIONAL);
+            //commitMode = (mode == Mode.AUTO_COMMIT || mode == Mode.READ_ONLY ? Mode.AUTO_COMMIT : Mode.TRANSACTIONAL);
+            commitMode = (mode == Mode.TRANSACTIONAL ? mode : Mode.AUTO_COMMIT);
 
             if (mode == Mode.BATCH && batch == null)
             {
@@ -177,6 +181,28 @@ namespace NuoTest
             transaction = null;
         }
 
+        /**
+         * something fatal has happened in this session,
+         * so release any dead/invalid resources, and be ready to try again.
+         * 
+         * Does NOT close (commit) resources.
+         * The current SqlSession is left active.
+         */
+        public bool retry(Exception e)
+        {
+            rollback();
+            releaseResources();
+
+            // return true if the operation could be retried
+            if (e is NuoDbSqlException) {
+                int code = (e as NuoDbSqlException).Code.Code;
+                if (code >= lowestRetriableErrorCode && code <= highestRetriableErrorCode)
+                    return true;
+            }
+
+            return false;
+        }
+
         public void Dispose()
         {
             // make my parent active again (or nothing acive if we are top-level)
@@ -185,15 +211,15 @@ namespace NuoTest
             String name;
             sessions.TryRemove(this, out name);
 
-            Exception error = null;
-            try { closeStatements(); }
-            catch (Exception e) { error = e; }
-
-            try { closeConnection(); }
-            catch (Exception e) { error = e; }
-
-            if (error != null)
-                throw new PersistenceException(error, "Error closing session");
+            try {
+                closeResources();
+            }
+            catch (Exception e) {
+                throw new PersistenceException(e, "Error closing session");
+            }
+            finally {
+                releaseResources();
+            }
         }
 
         public DbCommand getStatement(String sql)
@@ -318,7 +344,7 @@ namespace NuoTest
                 DbConnection conn = parent.Connection();
                 if (commitMode == Mode.TRANSACTIONAL && parent.transaction == null)
                 {
-                    transaction = conn.BeginTransaction();
+                    transaction = conn.BeginTransaction(updateIsolation);
                 }
 
                 return conn;
@@ -363,96 +389,72 @@ namespace NuoTest
             return connection;
         }
 
-        protected void closeStatements()
+        protected void closeResources()
         {
             // only close local resources (do NOT close parent)
 
-            try
+            // any batch is local to this SqlSession, so close it now
+            if (mode == Mode.BATCH && batch != null)
             {
-                // any batch is local to this SqlSession, so close it now
-                if (mode == Mode.BATCH && batch != null)
+                long batchStart = Environment.TickCount;
+                NuoDbBulkLoader loader = new NuoDbBulkLoader((NuoDbConnection)Connection());
+                //{
+                loader.DestinationTableName = batch[0].Table.TableName;
+                //loader.DestinationTableName = BatchTable.TableName;
+                int index = 0;
+                foreach (DataColumn c in batch[0].Table.Columns)
+                //foreach (DataColumn c in BatchTable.Columns)
                 {
-                    long batchStart = Environment.TickCount;
-                    NuoDbBulkLoader loader = new NuoDbBulkLoader((NuoDbConnection)Connection());
-                    //{
-                    loader.DestinationTableName = batch[0].Table.TableName;
-                    //loader.DestinationTableName = BatchTable.TableName;
-                    int index = 0;
-                    foreach (DataColumn c in batch[0].Table.Columns)
-                    //foreach (DataColumn c in BatchTable.Columns)
-                    {
-                        loader.ColumnMappings.Add(index++, c.ColumnName);
-                    }
-                    loader.WriteToServer(batch.ToArray());
-                    //loader.WriteToServer(BatchTable);
-                    //}
-                    long duration = Environment.TickCount - batchStart;
-                    double rate = (batch.Count > 0 && duration > 0 ? 1000.0 * batch.Count / duration : 0);
-                    log.info("Batch commit complete duration={0:N0} ms; rate={1:F2} ips", duration, rate);
+                    loader.ColumnMappings.Add(index++, c.ColumnName);
                 }
+                loader.WriteToServer(batch.ToArray());
+                //loader.WriteToServer(BatchTable);
+                //}
+                long duration = Environment.TickCount - batchStart;
+                double rate = (batch.Count > 0 && duration > 0 ? 1000.0 * batch.Count / duration : 0);
+                log.info("Batch commit complete duration={0:N0} ms; rate={1:F2} ips", duration, rate);
             }
-            catch (Exception e)
-            {
-                log.info("Error during bulk update: {0}", e.Message);
-                throw new PersistenceException(e, "Error in bulk update {0}", e.Message);
-            }
-            finally
-            {
 
-                if (batch != null) batch.Clear();
-                batch = null;
-
-                if (BatchTable != null)
-                {
-                    foreach (DataTable table in BatchTable.Values) { table.Clear(); }
-                    BatchTable.Clear();
-                }
-                BatchTable = null;
-
-                if (statements != null)
-                {
-
-                    //for (DbCommand ps : statements.values()) {
-                    foreach (DbCommand ps in statements.Values)
-                    {
-                        try { ps.Dispose(); }
-                        catch (Exception) { }
-                    }
-
-                    statements.Clear();
-                }
+            // commit any transaction scoped to this session
+            if (connection != null && transaction != null && commitMode == Mode.TRANSACTIONAL) {
+                transaction.Commit();
             }
         }
 
-        protected void closeConnection()
+        protected void releaseResources()
         {
             // only close local resources - never close parent
-            try {
-                if (connection != null)
-                {
-                    if (transaction != null && commitMode == Mode.TRANSACTIONAL)
-                    {
-                        transaction.Commit();
-                    }
-                }
-            } catch (/*SQL*/Exception e) {
-                throw new PersistenceException(e, "Error commiting connection");
-            }
-            finally {
-                if (transaction != null) {
-                    try { transaction.Dispose(); }
-                    catch (Exception e) {}
-                }
 
-                if (connection != null)
-                {
-                    try { connection.Dispose(); }
+            if (batch != null) batch.Clear();
+            batch = null;
+
+            if (BatchTable != null) {
+                foreach (DataTable table in BatchTable.Values) { table.Clear(); }
+                BatchTable.Clear();
+            }
+            BatchTable = null;
+
+            if (statements != null) {
+                //for (DbCommand ps : statements.values()) {
+                foreach (DbCommand ps in statements.Values) {
+                    try { ps.Dispose(); }
                     catch (Exception) { }
                 }
 
-                connection = null;
-                transaction = null;
+                statements.Clear();
             }
+
+            if (transaction != null) {
+                try { transaction.Dispose(); }
+                catch (Exception e) {}
+            }
+            transaction = null;
+
+            if (connection != null) {
+                try { connection.Dispose(); }
+                catch (Exception) { }
+            }
+            connection = null;
         }
     }
 }
