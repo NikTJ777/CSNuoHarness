@@ -11,17 +11,18 @@ namespace NuoTest
 
 	class Group : Entity
 	{
-		internal long EventId { get; set; }
-		internal String Name { get; set; }
-		internal String Description { get; set; }
+        internal long EventId { get; set; }
+        internal String GroupGuid { get; set; }
+        internal String Description { get; set; }
 		internal int DataCount { get; set; }
-		internal DateTime Date { get; set; }
+		internal DateTime DateCreated { get; set; }
+        internal DateTime LastUpdated { get; set; }
 		internal String Region { get; set; }
 		internal long Week { get; set; }
 
-		internal Group(long id, String name) : base(id)
+		internal Group(long id, String groupGuid) : base(id)
 		{
-            this.Name = name;
+            this.GroupGuid = groupGuid;
         }
 
         public Group()

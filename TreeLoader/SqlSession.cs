@@ -32,11 +32,13 @@ namespace NuoTest
         private static ThreadLocal<SqlSession> current = new ThreadLocal<SqlSession>();
         private static ConcurrentDictionary<SqlSession, String> sessions;
         private static IsolationLevel updateIsolation;
+        internal static InterfaceMode interfaceMode { get; set; }
+        internal static String SpNamePrefix { get; set; }
 
         private static int lowestRetriableErrorCode = 40000;
         private static int highestRetriableErrorCode = 40999;
 
-        private static readonly String DBDRIVER = "NuoDB.Data.Client";
+        //private static readonly String DBDRIVER = "NuoDB.Data.Client";
 
         private static Logger log = Logger.getLogger("SqlSession");
 
@@ -45,6 +47,7 @@ namespace NuoTest
         //}
 
         public enum Mode { AUTO_COMMIT, TRANSACTIONAL, BATCH, READ_ONLY };
+        public enum InterfaceMode { SQL, CALL, STORED_PROCEDURE };
 
         public static void init(Dictionary<String, String> properties, int maxThreads)
         {
@@ -240,42 +243,70 @@ namespace NuoTest
                 statements = new Dictionary<String, DbCommand>();
             }
 
-            DbCommand ps;
-            if (!statements.TryGetValue(sql, out ps))
+            DbCommand cmd;
+            if (!statements.TryGetValue(sql, out cmd))
             {
                 //if (ps == null) {
                 //int returnMode = (mode == Mode.AUTO_COMMIT ? Statement.RETURN_GENERATED_KEYS : Statement.NO_GENERATED_KEYS);
                 //int returnMode = Statement.RETURN_GENERATED_KEYS;
                 //DbCommand ps = connection().prepareStatement(sql);
-                ps = Connection().CreateCommand();
-                ps.CommandText = sql;
-                ps.Prepare();
-                statements[sql] = ps;
+                cmd = Connection().CreateCommand();
+                if (interfaceMode == InterfaceMode.STORED_PROCEDURE) {
+                    cmd.CommandType = CommandType.StoredProcedure;
+                }
+
+                cmd.CommandText = sql;
+                //cmd.Prepare();
+                statements[sql] = cmd;
             } else {
-                foreach (DbParameter p in ps.Parameters)
+                foreach (DbParameter p in cmd.Parameters)
                     p.Value = null;
             }
 
             //batch = (mode == Mode.BATCH ? ps : null);
 
-            return ps;
+            return cmd;
         }
 
         public void execute(String script)
         {
             if (script == null || script.Length == 0) return;
 
-            String[] lines = script.Split("@".ToCharArray());
+            String[] lines = script.Split(";".ToCharArray());
 
             using (DbTransaction transaction = Connection().BeginTransaction())
             {
                 using (DbCommand command = Connection().CreateCommand())
                 {
+                    bool multiLine = false;
                     foreach (String line in lines)
                     {
-                        command.CommandText = line.Trim();
-                        Console.WriteLine("executing statement {0}", line.Trim());
+                        String statement = line.Trim();
+                        //Console.WriteLine("statement=" + statement);
+
+                        // skip "GO" commands
+                        if (statement.Equals("GO", StringComparison.CurrentCultureIgnoreCase))
+                        {
+                            multiLine = false;
+                            continue;
+                        }
+
+                        // assemble multi-statement commands
+                        else if (statement.StartsWith("CREATE PROCEDURE ", StringComparison.CurrentCultureIgnoreCase))
+                            multiLine = true;
+
+                        else if (statement.Equals("END_PROCEDURE", StringComparison.CurrentCultureIgnoreCase))
+                            multiLine = false;
+
+                        if (statement != null)
+                            command.CommandText = (command.CommandText.Length == 0 ? statement : command.CommandText + ";\n" + statement);
+
+                        if (multiLine)
+                            continue;
+
+                        Console.WriteLine("executing statement {0}", command.CommandText);
                         command.ExecuteNonQuery();
+                        command.CommandText = "";
                     }
                     transaction.Commit();
                 }
@@ -314,11 +345,27 @@ namespace NuoTest
             {
                 using (DbCommand cmd = getStatement(sql))
                 {
-                    for (int index = 0; index < row.ItemArray.Length; index++)
+                    int offset = 0;
+                    if (interfaceMode == InterfaceMode.STORED_PROCEDURE || interfaceMode == InterfaceMode.CALL)
                     {
-                        cmd.Parameters[index].Value = row.ItemArray[index];
+                        cmd.Parameters.Add(cmd.CreateParameter());
+                        //cmd.Parameters[0].ParameterName = "$id";
+                        cmd.Parameters[0].Direction = ParameterDirection.InputOutput;
+                        cmd.Parameters[0].Value = new Int64();
+                        offset = 1;
                     }
 
+                    for (int index = 0; index < row.ItemArray.Length; index++)
+                    {
+                        cmd.Parameters.Add(cmd.CreateParameter());
+                        cmd.Parameters[index + offset].Value = row.ItemArray[index];
+                    }
+
+
+                    cmd.Prepare();
+                    log.info("param count={0}", cmd.Parameters.Count);
+                    for (int x = 0; x < cmd.Parameters.Count; x++) log.info("param[{0}]={1}", x, cmd.Parameters[x].Value);
+                    
                     return update(cmd);
                 }
             }
@@ -328,11 +375,21 @@ namespace NuoTest
 
         public long update(DbCommand update)
         {
-            //return (long)update.ExecuteScalar();
-            //return (long)update.ExecuteNonQuery();
-            using (DbDataReader keys = update.ExecuteReader())
+            if (interfaceMode == InterfaceMode.SQL)
             {
-                return (keys.Read() ? keys.GetInt64(0) : 0);
+                //return (long)update.ExecuteScalar();
+                //return (long)update.ExecuteNonQuery();
+                using (DbDataReader keys = update.ExecuteReader())
+                {
+                    return (keys.Read() ? keys.GetInt64(0) : 0);
+                }
+            }
+            else
+            {
+                update.ExecuteNonQuery();
+                log.info("returned params have {0} elements", update.Parameters.Count);
+                for (int x = 0; x < update.Parameters.Count; x++) log.info("returned param[{0}] = {1}", x, update.Parameters[x].Value);
+                return Int64.Parse(update.Parameters[0].Value.ToString());
             }
         }
 

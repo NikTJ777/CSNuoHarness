@@ -27,9 +27,11 @@ namespace NuoTest
 
         protected static readonly String updateSql = "UPDATE {0} set {1} = ({2}) where id = ?";
 
-        protected static readonly String getSql = "SELECT {0} from {1} {2}";
+        protected static readonly String getSql = "SELECT {1} from {0} {2}";
 
-        protected static readonly String callSP = "call {0}";
+        protected static readonly String callSP = "CALL {0}";
+
+        protected static readonly String SPname = "{0}{1}{2}";
 
         internal static Logger log = Logger.getLogger("AbstractRepository");
 
@@ -57,7 +59,8 @@ namespace NuoTest
 
         public T findById(long id)
         {
-            String sql = String.Format(findSql, tableName);
+            //String sql = String.Format(findSql, tableName);
+            String sql = formatSql("find");
             DbCommand cmd = SqlSession.getCurrent().getStatement(sql);
             cmd.Parameters[0].Value = id;
             using (DbDataReader row = cmd.ExecuteReader()) {
@@ -84,7 +87,8 @@ namespace NuoTest
                 throw new PersistenceException("Attempt to persist already persistent object {0}", entity.ToString());
             }
 
-            String sql = String.Format(persistSql, tableName, names, replace);
+            //String sql = String.Format(persistSql, tableName, names, replace);
+            String sql = formatSql("insert");
             SqlSession session = SqlSession.getCurrent();
             for (int retry = 0; ; retry++)
             {
@@ -124,7 +128,8 @@ namespace NuoTest
 
             String args = builder.ToString();
 
-            String sql = String.Format(updateSql, tableName, columns, args);
+            //String sql = String.Format(updateSql, tableName, columns, args);
+            String sql = formatSql("update", columns, args);
             SqlSession session = SqlSession.getCurrent();
             using (DbCommand update = session.getStatement(sql)) {
                 try {
@@ -159,10 +164,11 @@ namespace NuoTest
         public String getValue(String column, String criteria)
         {
             SqlSession session = SqlSession.getCurrent();
+            String sql = formatSql("get", column, criteria);
 
-            using (DbCommand sql = session.getStatement(String.Format(getSql, column, tableName, criteria))) {
+            using (DbCommand cmd = session.getStatement(sql)) {
                 try {
-                    return sql.ExecuteScalar().ToString();
+                    return cmd.ExecuteScalar().ToString();
                 } catch (Exception e) {
                     throw new PersistenceException(e, "Error querying for single value: {0} from {1} {2}",
                             column, tableName, criteria);
@@ -189,6 +195,40 @@ namespace NuoTest
         protected abstract T mapIn(DbDataReader reader);
 
         protected abstract DataRow mapOut(T entity, SqlSession session);
+
+        protected String formatSql(String verb, params String[] args)
+        {
+            String[] table = tableName.Split(new Char[] {'.'});
+            String spname = String.Format(SPname, SqlSession.SpNamePrefix, verb, table.Length > 1 ? table[1] : table[0]);
+
+            switch (SqlSession.interfaceMode)
+            {
+                case SqlSession.InterfaceMode.SQL:
+                    switch (verb)
+                    {
+                        case "insert":
+                            return String.Format(persistSql, tableName, names, replace);
+
+                        case "find":
+                            return String.Format(findSql, tableName);
+
+                        case "update":
+                            return String.Format(updateSql, tableName, args[0], args[1]);
+
+                        case "get":
+                            return String.Format(getSql, tableName, args[0], args[1]);
+                    }
+                    break;
+
+                case SqlSession.InterfaceMode.CALL:
+                    return String.Format(callSP, spname);
+
+                case SqlSession.InterfaceMode.STORED_PROCEDURE:
+                    return spname;
+            }
+
+            throw new PersistenceException("Invalid call to formatSql: {0}", verb);
+        }
 
         /**
          * set parameters into a PreparedStatement

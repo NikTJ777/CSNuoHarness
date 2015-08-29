@@ -13,7 +13,7 @@ namespace NuoTest
         Logger dataLog = Logger.getLogger("DataRepository");
 
         public DataRepository()
-            : base("NuoTest.T_DATA", "groupId", "instanceUID", "name", "description", "path", "active", "regionWeek")
+            : base("NuoTest.DATA", "groupId", "dataGuid", "instanceUID", "createdDateTime", "acquiredDateTime", "version", "active", "sizeOnDiskMB", "regionWeek")
         { }
 
         //@Override
@@ -68,13 +68,14 @@ namespace NuoTest
 
         //@Override
         protected override Data mapIn(DbDataReader row) {
-            Data data = new Data(row.GetInt64(0), row.GetString(3));
+            Data data = new Data(row.GetInt64(0), row.GetString(2));
             data.GroupId = row.GetInt64(1);
-            data.InstanceUID = row.GetString(2);
-            data.Description = row.GetString(4);
-            data.Path = row.GetString(5);
+            data.InstanceUID = row.GetString(3);
+            data.CreatedDateTime = row.GetDateTime(4);
+            data.AcquiredDateTime = row.GetDateTime(5);
             data.Active = row.GetBoolean(6);
-            data.RegionWeek = row.GetString(7);
+            data.Version = row.GetByte(7);
+            data.RegionWeek = row.GetString(8);
 
             return data;
         }
@@ -89,10 +90,11 @@ namespace NuoTest
 
                 table.Columns.Add("groupId", typeof(long));
                 table.Columns.Add("instanceUID", typeof(String));
-                table.Columns.Add("name", typeof(String));
-                table.Columns.Add("description", typeof(String));
-                table.Columns.Add("path", typeof(String));
+                table.Columns.Add("createdDateTime", typeof(DateTime));
+                table.Columns.Add("acquiredDateTime", typeof(DateTime));
+                table.Columns.Add("version", typeof(byte));
                 table.Columns.Add("active", typeof(bool));
+                table.Columns.Add("sizeOnDiskMB", typeof(float));
                 table.Columns.Add("regionWeek", typeof(String));
             }
 
@@ -100,11 +102,12 @@ namespace NuoTest
 
             row[0] = data.GroupId;
             row[1] = data.InstanceUID;
-            row[2] = data.Name;
-            row[3] = data.Description;
-            row[4] = data.Path;
+            row[2] = data.CreatedDateTime;
+            row[3] = data.AcquiredDateTime;
+            row[4] = data.Version;
             row[5] = data.Active;
-            row[6] = data.RegionWeek;
+            row[6] = data.SizeOnDiskMB;
+            row[7] = data.RegionWeek;
 
             return row;
         }

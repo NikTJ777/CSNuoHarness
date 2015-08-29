@@ -11,15 +11,19 @@ namespace NuoTest
 
 	class Event : Entity
 	{
-		internal long OwnerId { get; set; }
-		internal String Name { get; set; }
+        internal long CustomerId { get; set; }
+        internal long OwnerId { get; set; }
+        internal String EventGuid { get; set; }
+        internal String Name { get; set; }
 		internal String Description { get; set; }
-		internal DateTime Date { get; set; }
-		internal String Region { get; set; }
+		internal DateTime DateCreated { get; set; }
+        internal DateTime LastUpdated { get; set; }
+        internal String Region { get; set; }
 
-		public Event(long id, String name) : base(id)
+		public Event(long id, long customerId, String eventGuid) : base(id)
 		{
-            this.Name = name;
+            this.CustomerId = customerId;
+            this.EventGuid = eventGuid;
         }
 
         public Event()

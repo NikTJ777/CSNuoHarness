@@ -17,7 +17,7 @@ namespace NuoTest
         //internal static Logger log = Logger.getLogger("EventRepository");
 
         public EventRepository(OwnerRepository ownerRepository, GroupRepository groupRepository, DataRepository dataRepository)
-            : base("NuoTest.T_EVENT", "ownerId", "name", "description", "date", "region")
+            : base("NuoTest.EVENT", "customerId", "ownerId", "eventGuid", "name", "description", "dateCreated", "lastUpdated", "region")
         {
             this.ownerRepository = ownerRepository;
             this.groupRepository = groupRepository;
@@ -82,11 +82,13 @@ namespace NuoTest
         //@Override
         protected override Event mapIn(DbDataReader row)
         {
-            Event ev = new Event(row.GetInt64(0), row.GetString(2));
-            ev.OwnerId = row.GetInt64(1);
-            ev.Description = row.GetString(3);
-            ev.Date = row.GetDateTime(4);
-            ev.Region = row.GetString(5);
+            Event ev = new Event(row.GetInt64(0), row.GetInt64(1), row.GetString(3));
+            ev.OwnerId = row.GetInt64(2);
+            ev.Name = row.GetString(4);
+            ev.Description = row.GetString(5);
+            ev.DateCreated = row.GetDateTime(6);
+            ev.LastUpdated = row.GetDateTime(7);
+            ev.Region = row.GetString(8);
 
             return ev;
         }
@@ -100,20 +102,26 @@ namespace NuoTest
                 table = new System.Data.DataTable(tableName);
                 session.BatchTable[tableName] = table;
 
+                table.Columns.Add("customerId", typeof(long));
                 table.Columns.Add("ownerId", typeof(long));
+                table.Columns.Add("eventGuid", typeof(String));
                 table.Columns.Add("name", typeof(String));
                 table.Columns.Add("description", typeof(String));
-                table.Columns.Add("date", typeof(DateTime));
+                table.Columns.Add("dateCreated", typeof(DateTime));
+                table.Columns.Add("lastUpdated", typeof(DateTime));
                 table.Columns.Add("region", typeof(String));
             }
 
             DataRow row = table.NewRow();
 
-            row[0] = ev.OwnerId;
-            row[1] = ev.Name;
-            row[2] = ev.Description;
-            row[3] = ev.Date;
-            row[4] = ev.Region;
+            row[0] = ev.CustomerId;
+            row[1] = ev.OwnerId;
+            row[2] = ev.EventGuid;
+            row[3] = ev.Name;
+            row[4] = ev.Description;
+            row[5] = ev.DateCreated;
+            row[6] = ev.LastUpdated;
+            row[7] = ev.Region;
 
             return row;
         }

@@ -12,16 +12,18 @@ namespace NuoTest
 	internal class Data : Entity
 	{
 		internal long GroupId { get; set; }
+        internal String DataGuid { get; set; }
 		internal String InstanceUID { get; set; }
-		internal String Name { get; set; }
-		internal String Description { get; set; }
-		internal String Path { get; set; }
+		internal DateTime CreatedDateTime { get; set; }
+		internal DateTime AcquiredDateTime { get; set; }
+		internal byte Version { get; set; }
 		internal bool Active { get; set; }
+        internal float SizeOnDiskMB { get; set; }
 		internal String RegionWeek { get; set; }
 
-		internal Data(long id, String name)	: base(id)
+		internal Data(long id, String dataGuid)	: base(id)
 		{
-            this.Name = name;
+            this.DataGuid = dataGuid;
         }
 
         public Data()

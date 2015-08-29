@@ -83,8 +83,9 @@ namespace NuoTest
         public const String DB_INIT_SQL =        "db.init.sql";
         public const String DB_SCHEMA =          "db.schema";
         public const String TX_MODEL =           "tx.model";
-        public const String INSERT_MODE =        "insert.mode";
+        public const String INTERFACE_MODE =     "interface.mode";
         public const String BULK_COMMIT_MODE =   "bulk.commit.mode";
+        public const String SP_NAME_PREFIX =     "sp.name.prefix";
         public const String QUERY_ONLY =         "query.only";
         public const String QUERY_BACKOFF =      "query.backoff";
         public const String UPDATE_ISOLATION =   "update.isolation";
@@ -124,8 +125,9 @@ namespace NuoTest
             defaultProperties.Add(MAX_BURST, "0");
             defaultProperties.Add(RUN_TIME, "5");
             defaultProperties.Add(TX_MODEL, "DISCRETE");
-            defaultProperties.Add(INSERT_MODE, "SQL");
+            defaultProperties.Add(INTERFACE_MODE, "SQL");
             defaultProperties.Add(BULK_COMMIT_MODE, "BATCH");
+            defaultProperties.Add(SP_NAME_PREFIX, "importer_");
             defaultProperties.Add(DB_INIT, "false");
             defaultProperties.Add(QUERY_ONLY, "false");
             defaultProperties.Add(QUERY_BACKOFF, "0");
@@ -219,6 +221,12 @@ namespace NuoTest
             //String insertIsolation = appProperties.getProperty(UPDATE_ISOLATION);
             //DataSource dataSource = new com.nuodb.jdbc.DataSource(dbProperties);
             SqlSession.init(dbProperties, insertThreads + queryThreads);
+            
+            SqlSession.InterfaceMode interfaceMode;
+            if (!Enum.TryParse<SqlSession.InterfaceMode>(appProperties[INTERFACE_MODE], out interfaceMode))
+                interfaceMode = SqlSession.InterfaceMode.SQL;
+            SqlSession.interfaceMode = interfaceMode;
+            SqlSession.SpNamePrefix = appProperties[SP_NAME_PREFIX];
 
             ownerRepository = new OwnerRepository();
             ownerRepository.init();
@@ -508,19 +516,23 @@ namespace NuoTest
                         string line;
                         while ((line = reader.ReadLine()) != null)
                         {
+                            //appLog.info("read {0}", line);
                             if ((!String.IsNullOrEmpty(line)) &&
                                 (!line.StartsWith(";")) &&
                                 (!line.StartsWith("#")) &&
                                 (!line.StartsWith("'")) &&
                                 (line.Contains('=')))
                             {
+                                //appLog.info("non-comment line: {0}", line);
                                 // if the line ends with a \, concatenate it with the next line
                                 while (line.EndsWith("\\"))
                                 {
                                     string nextLine = reader.ReadLine();
                                     if (nextLine == null)
                                         break;
-                                    line = line.TrimEnd(new char[] { '\\' }) + nextLine;
+                                    //appLog.info("continuation: {0}", nextLine);
+                                    line = line.TrimEnd(new char[] { '\\' }) + "\r" + nextLine;
+                                    //appLog.info("line now: {0}", line);
                                 }
                                 // convert explicit \n
                                 line = line.Replace("\\n", "\n");
@@ -575,8 +587,8 @@ namespace NuoTest
                     {
                         newVar.Append(iter.Current.Value.Substring(lastPos, m.Index-lastPos));
                         newVar.Append(val);
+                        lastPos = m.Index + m.Length;
                     }
-                    lastPos = m.Index + m.Length;
                     appLog.info("resolving var reference {0} to {1}", m.Value, val);
                 }
 
@@ -611,7 +623,7 @@ namespace NuoTest
 
             private readonly long unique;
             private readonly Controller ctrl;
-            private DateTime dateStamp = new DateTime();
+            private DateTime dateStamp = DateTime.Now;
 
             public EventGenerator(Controller ctrl, long unique) {
                 this.unique = unique;
@@ -648,11 +660,11 @@ namespace NuoTest
                 SqlSession outerTx = (ctrl.txModel == TxModel.UNIFIED ? new SqlSession(SqlSession.Mode.TRANSACTIONAL) : null);
 
                 using (SqlSession session = new SqlSession(SqlSession.Mode.AUTO_COMMIT)) {
-                    ownerId = generateOwner();
+                    ownerId = ctrl.ownerRepository.persist(generateOwner());
                     Console.Out.WriteLine("\n------------------------------------------------");
                     report("Owner", 1, timer.ElapsedTicks - start);
 
-                    eventId = generateEvent(ownerId);
+                    eventId = ctrl.eventRepository.persist(generateEvent(ownerId));
                 }
                 workTime += timer.ElapsedTicks - workStart;
 
@@ -670,7 +682,7 @@ namespace NuoTest
                 workStart = timer.ElapsedTicks;
                 for (int gx = 0; gx < groupCount; gx++) {
                     using (SqlSession session = new SqlSession(SqlSession.Mode.AUTO_COMMIT)) {
-                        groupId = generateGroup(eventId, gx);
+                        groupId = ctrl.groupRepository.persist(generateGroup(eventId, gx));
                     }
 
                     total += dataCount;
@@ -730,50 +742,66 @@ namespace NuoTest
                 ctrl.scheduleViewTask(eventId);
             }
 
-            protected long generateOwner() {
+            protected Owner generateOwner() {
 
                 Owner owner = new Owner();
+                owner.CustomerId = unique % 200;
+                owner.OwnerGuid = String.Format("Owner-GUID-{0}", unique);
+                owner.DateCreated = dateStamp;
+                owner.LastUpdated = dateStamp;
                 owner.Name = String.Format("Owner-{0}", unique);
+                owner.MasterAliasId = unique;
                 owner.Region = (unique % 2 == 0 ? "Region_A" : "Region_B");
 
-                return ctrl.ownerRepository.persist(owner);
+                return owner;
+                //return ctrl.ownerRepository.persist(owner);
             }
 
-            protected long generateEvent(long ownerId) {
+            protected Event generateEvent(long ownerId) {
 
                 Event ev = new Event();
-                ev.Name = String.Format("Event-{0}", unique);
+                ev.CustomerId = unique % 200;
+                ev.EventGuid = String.Format("Event-GUID-{0}", unique);
                 ev.OwnerId = ownerId;
-                ev.Date = dateStamp;
+                ev.Name = String.Format("Event-{0}", unique);
+                ev.Description = "Test data generated by CSNuoTest";
+                ev.DateCreated = dateStamp;
+                ev.LastUpdated = dateStamp;
                 ev.Region = (unique % 2 == 0 ? "Region_A" : "Region_B");
 
-                return ctrl.eventRepository.persist(ev);
+                return ev;
+                //return ctrl.eventRepository.persist(ev);
             }
 
-            protected long generateGroup(long eventId, int index) {
+            protected Group generateGroup(long eventId, int index) {
 
                 Group group = new Group();
+                //group.GroupGuid = String.Format("Group-{0}-{1}", unique, index);
+                group.GroupGuid = String.Join("-", "Group", unique, index);
                 group.EventId = eventId;
-                group.Name = String.Format("Group-{0}-{1}", unique, index);
                 group.DataCount = 0;
-                group.Date = dateStamp;
-                group.Description = "Test data generated by CSNuoTest";
+                group.DateCreated = dateStamp;
+                group.LastUpdated = dateStamp;
                 group.Region = (unique % 2 == 0 ? "Region_A" : "Region_B");
                 group.Week = (unique / 35000);
 
-                return ctrl.groupRepository.persist(group);
+                return group;
+                //return ctrl.groupRepository.persist(group);
             }
 
             protected Data generateData(long groupId, int index) {
-                String suffix = string.Join("-", unique, groupId, index);
-                String instanceUID = "image-"+suffix;
+                //String suffix = string.Join("-", unique, groupId, index);
+                //String instanceUID = "image-"+suffix;
+                String instanceUID = String.Join("-", "image", unique, groupId, index);
             
                 Data data = new Data();
                 data.GroupId = groupId;
+                data.DataGuid = "Data-" + instanceUID;
                 data.InstanceUID = instanceUID;
-                data.Name = "Data-"+suffix;
-                data.Description = "Test data generated by CSNuoTest";
-                data.Path = "file:///remote/storage/"+instanceUID+".bin";
+                data.CreatedDateTime = dateStamp;
+                data.AcquiredDateTime = dateStamp;
+                data.Version = 0;
+                data.Active = true;
                 data.RegionWeek = (unique % 2 == 0 ? "Region_A-" : "Region_B-") + (unique / 35000);
 
                 return data;    // don't persist individually - we may be persisting in a batch
