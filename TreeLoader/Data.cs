@@ -16,7 +16,7 @@ namespace NuoTest
 		internal String InstanceUID { get; set; }
 		internal DateTime CreatedDateTime { get; set; }
 		internal DateTime AcquiredDateTime { get; set; }
-		internal byte Version { get; set; }
+		internal Int16 Version { get; set; }
 		internal bool Active { get; set; }
         internal float SizeOnDiskMB { get; set; }
 		internal String RegionWeek { get; set; }

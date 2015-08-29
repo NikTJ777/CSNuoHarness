@@ -52,7 +52,7 @@ namespace NuoTest
             }
 
             DataRow row = table.NewRow();
-
+            //Console.WriteLine("GROUP MapOut");
             row[0] = group.EventId;
             row[1] = group.GroupGuid;
             row[2] = group.Description;

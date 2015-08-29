@@ -134,6 +134,7 @@ namespace NuoTest
             using (DbCommand update = session.getStatement(sql)) {
                 try {
                     setParams(update, columns, values);
+                    //update.Parameters.Add(update.CreateParameter());
                     update.Parameters[values.Length].Value = id;
                     session.update(update);
                 } catch (Exception e) {
@@ -184,9 +185,11 @@ namespace NuoTest
             }
             DbCommand cmd = SqlSession.getCurrent().getStatement(sql.ToString());
             for (int px = 0; px < param.Length; px++) {
+                //cmd.Parameters.Add(cmd.CreateParameter());
                 cmd.Parameters[px].Value = param[px];
             }
             //log.info("queryBy {0}", sql.ToString());
+            //cmd.Prepare();
             return cmd.ExecuteReader();
         }
 
@@ -198,8 +201,11 @@ namespace NuoTest
 
         protected String formatSql(String verb, params String[] args)
         {
-            String[] table = tableName.Split(new Char[] {'.'});
-            String spname = String.Format(SPname, SqlSession.SpNamePrefix, verb, table.Length > 1 ? table[1] : table[0]);
+            String[] fqTable = tableName.Split(new Char[] {'.'});
+            String table = (fqTable.Length > 1 ? fqTable[1] : fqTable[0]);
+            if (table.StartsWith("\"")) table = table.Substring(1, table.Length - 2);
+
+            String spname = String.Format(SPname, SqlSession.SpNamePrefix, verb, table);
 
             switch (SqlSession.interfaceMode)
             {
@@ -243,6 +249,7 @@ namespace NuoTest
         protected void setParams(DbCommand sp, String columns, Object[] values)
         {
             for (int vx = 0; vx < values.Length; vx++) {
+                sp.Parameters.Add(sp.CreateParameter());
                 sp.Parameters[vx].Value = values[vx];
             }
 

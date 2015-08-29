@@ -256,7 +256,7 @@ namespace NuoTest
                 }
 
                 cmd.CommandText = sql;
-                //cmd.Prepare();
+                cmd.Prepare();
                 statements[sql] = cmd;
             } else {
                 foreach (DbParameter p in cmd.Parameters)
@@ -346,25 +346,34 @@ namespace NuoTest
                 using (DbCommand cmd = getStatement(sql))
                 {
                     int offset = 0;
+                    int initialCount = cmd.Parameters.Count;
                     if (interfaceMode == InterfaceMode.STORED_PROCEDURE || interfaceMode == InterfaceMode.CALL)
                     {
-                        cmd.Parameters.Add(cmd.CreateParameter());
-                        //cmd.Parameters[0].ParameterName = "$id";
-                        cmd.Parameters[0].Direction = ParameterDirection.InputOutput;
+                        //if (cmd.Parameters.Count == 0)
+                        //{
+                        //    cmd.Parameters.Add(cmd.CreateParameter());
+                        //    cmd.Parameters[0].ParameterName = "$id";
+                        //    cmd.Parameters[0].Direction = ParameterDirection.InputOutput;
+                        //}
+
                         cmd.Parameters[0].Value = new Int64();
                         offset = 1;
                     }
 
                     for (int index = 0; index < row.ItemArray.Length; index++)
                     {
-                        cmd.Parameters.Add(cmd.CreateParameter());
+                        //if (cmd.Parameters.Count <= index + offset) cmd.Parameters.Add(cmd.CreateParameter());
                         cmd.Parameters[index + offset].Value = row.ItemArray[index];
                     }
 
+                    //log.info("before Prepare() - param count={0}", cmd.Parameters.Count);
+                    //for (int x = 0; x < cmd.Parameters.Count; x++) log.info("param[{0}]={1}", x, cmd.Parameters[x].Value);
 
-                    cmd.Prepare();
-                    log.info("param count={0}", cmd.Parameters.Count);
-                    for (int x = 0; x < cmd.Parameters.Count; x++) log.info("param[{0}]={1}", x, cmd.Parameters[x].Value);
+                    //if (cmd.Parameters.Count > initialCount)
+                    //    cmd.Prepare();
+
+                    //log.info("after Prepare() param count={0}", cmd.Parameters.Count);
+                    //for (int x = 0; x < cmd.Parameters.Count; x++) log.info("param[{0}]={1}", x, cmd.Parameters[x].Value);
                     
                     return update(cmd);
                 }
@@ -386,9 +395,16 @@ namespace NuoTest
             }
             else
             {
+                //Console.WriteLine("before SP call param[0]=" + update.Parameters[0].Value);
+                //for (int x = 0; x < update.Parameters.Count; x++) log.info("param[{0}] = {1}", x, update.Parameters[x].Value);
                 update.ExecuteNonQuery();
-                log.info("returned params have {0} elements", update.Parameters.Count);
-                for (int x = 0; x < update.Parameters.Count; x++) log.info("returned param[{0}] = {1}", x, update.Parameters[x].Value);
+                //Console.WriteLine("after SP call param[0]=" + update.Parameters[0].Value);
+                //for (int x = 0; x < update.Parameters.Count; x++) log.info("returned param[{0}] = {1}", x, update.Parameters[x].Value);
+
+                //log.info("returned params have {0} elements", update.Parameters.Count);
+                //for (int x = 0; x < update.Parameters.Count; x++) log.info("returned param[{0}] = {1}", x, update.Parameters[x].Value);
+
+                return 1;
                 return Int64.Parse(update.Parameters[0].Value.ToString());
             }
         }

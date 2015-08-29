@@ -38,6 +38,10 @@ namespace NuoTest
             int total = dataRows.Count();
             if (total == 0) return 0;
             
+            // temporary HACK for testing STORED_PROCEDURE mode
+            if (SqlSession.interfaceMode != SqlSession.InterfaceMode.SQL)
+                return total;
+
             Data data = dataRows.ElementAt(0).Value;
 
             //String sql = String.format(findBySql, getTableName(), "groupId", String.valueOf(data.getGroup()));
@@ -73,9 +77,10 @@ namespace NuoTest
             data.InstanceUID = row.GetString(3);
             data.CreatedDateTime = row.GetDateTime(4);
             data.AcquiredDateTime = row.GetDateTime(5);
-            data.Active = row.GetBoolean(6);
-            data.Version = row.GetByte(7);
-            data.RegionWeek = row.GetString(8);
+            data.Version = row.GetInt16(6);
+            data.Active = row.GetBoolean(7);
+            data.SizeOnDiskMB = row.GetFloat(8);
+            data.RegionWeek = row.GetString(9);
 
             return data;
         }
@@ -89,25 +94,27 @@ namespace NuoTest
                 session.BatchTable[tableName] = table;
 
                 table.Columns.Add("groupId", typeof(long));
+                table.Columns.Add("dataGuid", typeof(String));
                 table.Columns.Add("instanceUID", typeof(String));
                 table.Columns.Add("createdDateTime", typeof(DateTime));
                 table.Columns.Add("acquiredDateTime", typeof(DateTime));
-                table.Columns.Add("version", typeof(byte));
+                table.Columns.Add("version", typeof(Int16));
                 table.Columns.Add("active", typeof(bool));
                 table.Columns.Add("sizeOnDiskMB", typeof(float));
                 table.Columns.Add("regionWeek", typeof(String));
             }
 
             DataRow row = table.NewRow();
-
+            //Console.WriteLine("MapOut Data");
             row[0] = data.GroupId;
-            row[1] = data.InstanceUID;
-            row[2] = data.CreatedDateTime;
-            row[3] = data.AcquiredDateTime;
-            row[4] = data.Version;
-            row[5] = data.Active;
-            row[6] = data.SizeOnDiskMB;
-            row[7] = data.RegionWeek;
+            row[1] = data.DataGuid;
+            row[2] = data.InstanceUID;
+            row[3] = data.CreatedDateTime;
+            row[4] = data.AcquiredDateTime;
+            row[5] = data.Version;
+            row[6] = data.Active;
+            row[7] = data.SizeOnDiskMB;
+            row[8] = data.RegionWeek;
 
             return row;
         }
