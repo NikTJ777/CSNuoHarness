@@ -695,20 +695,25 @@ namespace NuoTest
                         dataRows.Add(data.InstanceUID, data);
                     }
 
-                    long uniquestart = timer.ElapsedTicks;
-                    using (SqlSession session = new SqlSession(SqlSession.Mode.AUTO_COMMIT)) {
-                        long uniqueRows = ctrl.dataRepository.checkUniqueness(dataRows);
+                    // in SP mode, the SP does the uniqieness testing - in BATCH mode we do it separately
+                    if (ctrl.bulkCommitMode == SqlSession.Mode.BATCH)
+                    {
+                        long uniquestart = timer.ElapsedTicks;
+                        using (SqlSession session = new SqlSession(SqlSession.Mode.AUTO_COMMIT))
+                        {
+                            long uniqueRows = ctrl.dataRepository.checkUniqueness(dataRows);
 
-                        appLog.info("{0} rows out of {1} new rows are unique", uniqueRows, dataCount);
-                        report("checkUniqueness", dataCount, timer.ElapsedTicks - uniquestart);
+                            appLog.info("{0} rows out of {1} new rows are unique", uniqueRows, dataCount);
+                            report("checkUniqueness", dataCount, timer.ElapsedTicks - uniquestart);
 
-                        long updateStart = timer.ElapsedTicks;
-                        //ctrl.groupRepository.update(groupId, "dataCount", uniqueRows);
-                        //appLog.info("Group.datCount update; duration={0} ms", (1.0 * (timer.ElapsedTicks - updateStart)) / Stopwatch.Frequency);
-                        report("Group.dataCount update", 1, timer.ElapsedTicks - updateStart);
+                            long updateStart = timer.ElapsedTicks;
+                            ctrl.groupRepository.update(groupId, "dataCount", uniqueRows);
+                            appLog.info("Group.datCount update; duration={0} ms", (1.0 * (timer.ElapsedTicks - updateStart)) / Stopwatch.Frequency);
+                            report("Group.dataCount update", 1, timer.ElapsedTicks - updateStart);
+                        }
+                        //appLog.info("Unique check time={0} ms", Environment.TickCount - uniquestart);
+                        report("Unique processing", dataCount, timer.ElapsedTicks - uniquestart);
                     }
-                    //appLog.info("Unique check time={0} ms", Environment.TickCount - uniquestart);
-                    report("Unique processing", dataCount, timer.ElapsedTicks - uniquestart);
 
                     long dataStart = timer.ElapsedTicks;
                     int count = 0;

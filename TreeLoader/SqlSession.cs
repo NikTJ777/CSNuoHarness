@@ -125,8 +125,8 @@ namespace NuoTest
         public SqlSession(Mode mode)
         {
             this.mode = mode;
-            //commitMode = (mode == Mode.AUTO_COMMIT || mode == Mode.READ_ONLY ? Mode.AUTO_COMMIT : Mode.TRANSACTIONAL);
-            commitMode = (mode == Mode.TRANSACTIONAL ? mode : Mode.AUTO_COMMIT);
+            commitMode = (mode == Mode.AUTO_COMMIT || mode == Mode.READ_ONLY ? Mode.AUTO_COMMIT : Mode.TRANSACTIONAL);
+            //commitMode = (mode == Mode.TRANSACTIONAL ? mode : Mode.AUTO_COMMIT);
             commsMode = (mode == Mode.BATCH ? CommunicationMode.SQL : globalCommsMode);
 
             if (mode == Mode.BATCH && batch == null)
@@ -175,7 +175,7 @@ namespace NuoTest
         {
             // only rollback our own tx - parent is a larger scope
 
-            if (transaction != null && commitMode == Mode.TRANSACTIONAL)
+            if (transaction != null /* && commitMode == Mode.TRANSACTIONAL */)
             {
                 try {
                     transaction.Rollback();
@@ -253,7 +253,7 @@ namespace NuoTest
                 //int returnMode = Statement.RETURN_GENERATED_KEYS;
                 //DbCommand ps = connection().prepareStatement(sql);
                 cmd = Connection().CreateCommand();
-                if (commsMode == CommunicationMode.STORED_PROCEDURE) {
+                if (! (sql.StartsWith("SELECT") || sql.StartsWith("INSERT") || sql.StartsWith("UPDATE")) || sql.StartsWith("CALL")) {
                     cmd.CommandType = CommandType.StoredProcedure;
                 }
 
@@ -386,7 +386,8 @@ namespace NuoTest
 
         public long update(DbCommand update)
         {
-            if (commsMode == CommunicationMode.SQL)
+            //if (commsMode == CommunicationMode.SQL)
+            if (update.CommandType == CommandType.Text)
             {
                 //return (long)update.ExecuteScalar();
                 //return (long)update.ExecuteNonQuery();
@@ -406,7 +407,7 @@ namespace NuoTest
                 //log.info("returned params have {0} elements", update.Parameters.Count);
                 //for (int x = 0; x < update.Parameters.Count; x++) log.info("returned param[{0}] = {1}", x, update.Parameters[x].Value);
 
-                return 1;
+                //return 1;
                 return Int64.Parse(update.Parameters[0].Value.ToString());
             }
         }
@@ -454,7 +455,9 @@ namespace NuoTest
                 //connection.ConnectionString = connectionString;
                 connection.Open();
 
-                if (commitMode == Mode.TRANSACTIONAL) {
+                //if (commitMode == Mode.TRANSACTIONAL && mode != Mode.BATCH)
+                if (commitMode == Mode.TRANSACTIONAL)
+                {
                     transaction = connection.BeginTransaction(updateIsolation);
                 }
             }
@@ -491,8 +494,12 @@ namespace NuoTest
             }
 
             // commit any transaction scoped to this session
-            if (connection != null && transaction != null && commitMode == Mode.TRANSACTIONAL) {
+            if (transaction != null /* && commitMode == Mode.TRANSACTIONAL */) {
                 transaction.Commit();
+            }
+
+            if (connection != null) {
+                connection.Close();
             }
         }
 

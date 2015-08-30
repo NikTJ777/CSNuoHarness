@@ -38,10 +38,6 @@ namespace NuoTest
             int total = dataRows.Count();
             if (total == 0) return 0;
             
-            // TODO temporary HACK for testing STORED_PROCEDURE mode
-            if (SqlSession.getCurrent().commsMode != SqlSession.CommunicationMode.SQL)
-                return total;
-
             Data data = dataRows.ElementAt(0).Value;
 
             //String sql = String.format(findBySql, getTableName(), "groupId", String.valueOf(data.getGroup()));

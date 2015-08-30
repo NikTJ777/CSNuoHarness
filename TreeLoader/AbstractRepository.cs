@@ -128,8 +128,8 @@ namespace NuoTest
 
             String args = builder.ToString();
 
-            //String sql = String.Format(updateSql, tableName, columns, args);
-            String sql = formatSql("update", columns, args);
+            String sql = String.Format(updateSql, tableName, columns, args);
+            //String sql = formatSql("update", columns, args);
             SqlSession session = SqlSession.getCurrent();
             using (DbCommand update = session.getStatement(sql)) {
                 try {
