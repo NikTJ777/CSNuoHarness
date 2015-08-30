@@ -207,9 +207,9 @@ namespace NuoTest
 
             String spname = String.Format(SPname, SqlSession.SpNamePrefix, verb, table);
 
-            switch (SqlSession.interfaceMode)
+            switch (SqlSession.getCurrent().commsMode)
             {
-                case SqlSession.InterfaceMode.SQL:
+                case SqlSession.CommunicationMode.SQL:
                     switch (verb)
                     {
                         case "insert":
@@ -226,10 +226,10 @@ namespace NuoTest
                     }
                     break;
 
-                case SqlSession.InterfaceMode.CALL:
+                case SqlSession.CommunicationMode.CALL:
                     return String.Format(callSP, spname);
 
-                case SqlSession.InterfaceMode.STORED_PROCEDURE:
+                case SqlSession.CommunicationMode.STORED_PROCEDURE:
                     return spname;
             }
 

@@ -17,6 +17,7 @@ namespace NuoTest
         private readonly Mode mode;
         private readonly Mode commitMode;
         private readonly SqlSession parent;
+        internal readonly CommunicationMode commsMode;
 
         private DbConnection connection;
         private DbTransaction transaction;
@@ -32,7 +33,7 @@ namespace NuoTest
         private static ThreadLocal<SqlSession> current = new ThreadLocal<SqlSession>();
         private static ConcurrentDictionary<SqlSession, String> sessions;
         private static IsolationLevel updateIsolation;
-        internal static InterfaceMode interfaceMode { get; set; }
+        internal static CommunicationMode globalCommsMode { get; set; }
         internal static String SpNamePrefix { get; set; }
 
         private static int lowestRetriableErrorCode = 40000;
@@ -47,7 +48,7 @@ namespace NuoTest
         //}
 
         public enum Mode { AUTO_COMMIT, TRANSACTIONAL, BATCH, READ_ONLY };
-        public enum InterfaceMode { SQL, CALL, STORED_PROCEDURE };
+        public enum CommunicationMode { SQL, CALL, STORED_PROCEDURE };
 
         public static void init(Dictionary<String, String> properties, int maxThreads)
         {
@@ -126,6 +127,7 @@ namespace NuoTest
             this.mode = mode;
             //commitMode = (mode == Mode.AUTO_COMMIT || mode == Mode.READ_ONLY ? Mode.AUTO_COMMIT : Mode.TRANSACTIONAL);
             commitMode = (mode == Mode.TRANSACTIONAL ? mode : Mode.AUTO_COMMIT);
+            commsMode = (mode == Mode.BATCH ? CommunicationMode.SQL : globalCommsMode);
 
             if (mode == Mode.BATCH && batch == null)
             {
@@ -251,7 +253,7 @@ namespace NuoTest
                 //int returnMode = Statement.RETURN_GENERATED_KEYS;
                 //DbCommand ps = connection().prepareStatement(sql);
                 cmd = Connection().CreateCommand();
-                if (interfaceMode == InterfaceMode.STORED_PROCEDURE) {
+                if (commsMode == CommunicationMode.STORED_PROCEDURE) {
                     cmd.CommandType = CommandType.StoredProcedure;
                 }
 
@@ -347,7 +349,7 @@ namespace NuoTest
                 {
                     int offset = 0;
                     int initialCount = cmd.Parameters.Count;
-                    if (interfaceMode == InterfaceMode.STORED_PROCEDURE || interfaceMode == InterfaceMode.CALL)
+                    if (commsMode == CommunicationMode.STORED_PROCEDURE || commsMode == CommunicationMode.CALL)
                     {
                         //if (cmd.Parameters.Count == 0)
                         //{
@@ -384,7 +386,7 @@ namespace NuoTest
 
         public long update(DbCommand update)
         {
-            if (interfaceMode == InterfaceMode.SQL)
+            if (commsMode == CommunicationMode.SQL)
             {
                 //return (long)update.ExecuteScalar();
                 //return (long)update.ExecuteNonQuery();

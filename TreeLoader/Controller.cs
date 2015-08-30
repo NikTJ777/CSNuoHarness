@@ -83,7 +83,7 @@ namespace NuoTest
         public const String DB_INIT_SQL =        "db.init.sql";
         public const String DB_SCHEMA =          "db.schema";
         public const String TX_MODEL =           "tx.model";
-        public const String INTERFACE_MODE =     "interface.mode";
+        public const String COMMUNICATION_MODE = "communication.mode";
         public const String BULK_COMMIT_MODE =   "bulk.commit.mode";
         public const String SP_NAME_PREFIX =     "sp.name.prefix";
         public const String QUERY_ONLY =         "query.only";
@@ -125,7 +125,7 @@ namespace NuoTest
             defaultProperties.Add(MAX_BURST, "0");
             defaultProperties.Add(RUN_TIME, "5");
             defaultProperties.Add(TX_MODEL, "DISCRETE");
-            defaultProperties.Add(INTERFACE_MODE, "SQL");
+            defaultProperties.Add(COMMUNICATION_MODE, "SQL");
             defaultProperties.Add(BULK_COMMIT_MODE, "BATCH");
             defaultProperties.Add(SP_NAME_PREFIX, "importer_");
             defaultProperties.Add(DB_INIT, "false");
@@ -222,10 +222,12 @@ namespace NuoTest
             //DataSource dataSource = new com.nuodb.jdbc.DataSource(dbProperties);
             SqlSession.init(dbProperties, insertThreads + queryThreads);
             
-            SqlSession.InterfaceMode interfaceMode;
-            if (!Enum.TryParse<SqlSession.InterfaceMode>(appProperties[INTERFACE_MODE], out interfaceMode))
-                interfaceMode = SqlSession.InterfaceMode.SQL;
-            SqlSession.interfaceMode = interfaceMode;
+            SqlSession.CommunicationMode commsMode;
+            if (!Enum.TryParse<SqlSession.CommunicationMode>(appProperties[COMMUNICATION_MODE], out commsMode))
+                commsMode = SqlSession.CommunicationMode.SQL;
+            SqlSession.globalCommsMode = commsMode;
+            appLog.info("SqlSession.globalCommsMode set to {0}", commsMode);
+
             SqlSession.SpNamePrefix = appProperties[SP_NAME_PREFIX];
 
             ownerRepository = new OwnerRepository();

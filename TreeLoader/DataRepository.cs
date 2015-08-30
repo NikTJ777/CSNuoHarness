@@ -38,8 +38,8 @@ namespace NuoTest
             int total = dataRows.Count();
             if (total == 0) return 0;
             
-            // temporary HACK for testing STORED_PROCEDURE mode
-            if (SqlSession.interfaceMode != SqlSession.InterfaceMode.SQL)
+            // TODO temporary HACK for testing STORED_PROCEDURE mode
+            if (SqlSession.getCurrent().commsMode != SqlSession.CommunicationMode.SQL)
                 return total;
 
             Data data = dataRows.ElementAt(0).Value;
