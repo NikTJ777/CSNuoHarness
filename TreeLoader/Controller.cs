@@ -481,10 +481,10 @@ namespace NuoTest
             foreach (String param in args) {
                 String[] keyVal = param.Split(new char[] {'='});
                 if (keyVal.Length == 2) {
-                    props[keyVal[0].Trim().Replace("-", "").Replace("+", ",")] = keyVal[1];
+                    props[keyVal[0].Trim().Replace("-", "")] = keyVal[1];
                 }
                 else {
-                    props[param.Trim().Replace("-", "").Replace("+", ",")] = "true";
+                    props[param.Trim().Replace("-", "")] = "true";
                 }
             }
         }
