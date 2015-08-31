@@ -152,6 +152,8 @@ namespace NuoTest
             // parse the command line into app properties, as command line overrides all others
             parseCommandLine(args, appProperties);
 
+            resolveReferences(appProperties);
+
             String[] keys = appProperties.Keys.ToArray();
             Array.Sort(keys);
             
@@ -566,7 +568,7 @@ namespace NuoTest
                     stream.Close();
                 }
             }
-            resolveReferences(props);
+            //resolveReferences(props);
 
             appLog.info("Loaded properties {0}: {1}", key, string.Join(";", localKeys));
         }
