@@ -408,7 +408,7 @@ namespace NuoTest
                 //for (int x = 0; x < update.Parameters.Count; x++) log.info("returned param[{0}] = {1}", x, update.Parameters[x].Value);
 
                 //return 1;
-                return Int64.Parse(update.Parameters[0].Value.ToString());
+                return Int64.Parse(update.Parameters["@id"].Value.ToString());
             }
         }
 
