@@ -227,6 +227,8 @@ namespace NuoTest
                     break;
 
                 case SqlSession.CommunicationMode.CALL:
+                    if (verb == "insert")
+                        return String.Format(callSP, spname) + "(?," +replace+ ")";
                     return String.Format(callSP, spname);
 
                 case SqlSession.CommunicationMode.STORED_PROCEDURE:
