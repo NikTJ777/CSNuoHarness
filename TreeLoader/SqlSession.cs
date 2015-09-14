@@ -359,6 +359,8 @@ namespace NuoTest
                         //}
 
                         cmd.Parameters[0].Value = new Int64();
+                        cmd.Parameters[0].Direction = ParameterDirection.Output;
+                        cmd.Parameters[0].DbType = DbType.Int64;
                         offset = 1;
                     }
 

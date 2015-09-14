@@ -73,6 +73,7 @@ namespace NuoTest
 
 			auditId.ParameterName = "AUDITID";
 			auditId.Direction = ParameterDirection.Output;
+            auditId.DbType = DbType.Int64;
 			Command.Parameters.Add(auditId);
 
 			Command.ExecuteNonQuery();
