@@ -9,6 +9,10 @@ using System.Text;
 using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
+using System.Data;
+using System.Data.Common;
+
+using NuoDb.Data.Client;
 
 namespace NuoTest
 {
@@ -35,6 +39,7 @@ namespace NuoTest
         internal float burstProbability;
         internal int minBurst, maxBurst;
         internal int maxQueued, queryBackoff;
+        internal int maxRetry, retrySleep;
         bool initDb = false;
         bool queryOnly = false;
 
@@ -91,6 +96,8 @@ namespace NuoTest
         public const String UPDATE_ISOLATION =   "update.isolation";
         public const String CONNECTION_TIMEOUT = "connection.timeout";
         public const String DB_PROPERTY_PREFIX = "db.property.prefix";
+        public const String MAX_RETRY =          "max.retry";
+        public const String RETRY_SLEEP =        "retry.sleep";
 
         internal enum TxModel { DISCRETE, UNIFIED };
 
@@ -133,6 +140,8 @@ namespace NuoTest
             defaultProperties.Add(QUERY_BACKOFF, "0");
             defaultProperties.Add(UPDATE_ISOLATION, "CONSISTENT_READ");
             defaultProperties.Add(CONNECTION_TIMEOUT, "300");
+            defaultProperties.Add(MAX_RETRY, "3");
+            defaultProperties.Add(RETRY_SLEEP, "500");
         }
 
         public void configure(String[] args)
@@ -194,6 +203,8 @@ namespace NuoTest
             initDb = Boolean.Parse(appProperties[DB_INIT]);
             queryOnly = Boolean.Parse(appProperties[QUERY_ONLY]);
             queryBackoff = Int32.Parse(appProperties[QUERY_BACKOFF]);
+            maxRetry = Int32.Parse(appProperties[MAX_RETRY]);
+            retrySleep = Int32.Parse(appProperties[RETRY_SLEEP]);
 
             String threadParam;
             int insertThreads = (appProperties.TryGetValue(INSERT_THREADS, out threadParam) ? Int32.Parse(threadParam) : 1);
@@ -277,9 +288,10 @@ namespace NuoTest
                 unique = 1;
             } else {
                 using (SqlSession session = new SqlSession(SqlSession.Mode.AUTO_COMMIT)) {
-                    String lastEventId = eventRepository.getValue("id", "ORDER BY id DESC LIMIT 1");
-                    unique = Int64.Parse(lastEventId) + 1;
-                    appLog.info("lastEventID = {0}", lastEventId);
+                    //String lastEventId = eventRepository.getValue("id", "ORDER BY id DESC LIMIT 1");
+                    //unique = Int64.Parse(lastEventId) + 1;
+                    unique = 100000;
+                    appLog.info("lastEventID = {0}", unique-1);
                 }
             }
 
@@ -636,20 +648,9 @@ namespace NuoTest
 
             public void run() {
 
-                /*
-                // global insertTimer is a ThreadLocal - initialise for this thread
-                if (ctrl.insertTimer.Value == null)
-                {
-                    ctrl.insertTimer.Value = new Stopwatch();
-                }
-                Stopwatch timer = ctrl.insertTimer.Value;
-                */
-
                 Stopwatch timer = ctrl.wallTimer;
 
-                //long start = Environment.TickCount;
                 long start = timer.ElapsedTicks;
-                //timer.Start();
 
                 long workStart = start;
                 long workTime = 0;
@@ -658,84 +659,72 @@ namespace NuoTest
                 long eventId;
                 long groupId;
 
+                int total = 0;
+
                 //appLog.log("starting generation - getting first session...");
 
-                // optionally start an enclosing session/transaction
-                SqlSession outerTx = (ctrl.txModel == TxModel.UNIFIED ? new SqlSession(SqlSession.Mode.TRANSACTIONAL) : null);
-
-                using (SqlSession session = new SqlSession(SqlSession.Mode.AUTO_COMMIT)) {
-                    ownerId = ctrl.ownerRepository.persist(generateOwner());
-                    Console.Out.WriteLine("\n------------------------------------------------");
-                    report("Owner", 1, timer.ElapsedTicks - start);
-
-                    eventId = ctrl.eventRepository.persist(generateEvent(ownerId));
-                }
-                workTime += timer.ElapsedTicks - workStart;
-
-                int groupCount = ctrl.minGroups + ctrl.random.Next(ctrl.maxGroups - ctrl.minGroups);
-                appLog.info("Creating {0} groups", groupCount);
-
-                int total = 2 + groupCount;
-
-                Dictionary<String, Data> dataRows = new Dictionary<String, Data>(ctrl.maxData);
-
-                // data records per group
-                int dataCount = (ctrl.minData + ctrl.random.Next(ctrl.maxData - ctrl.minData)) / groupCount;
-                appLog.info("Creating {0} Data records @ {1} records per group", dataCount * groupCount, dataCount);
-
-                workStart = timer.ElapsedTicks;
-                for (int gx = 0; gx < groupCount; gx++) {
-                    using (SqlSession session = new SqlSession(SqlSession.Mode.AUTO_COMMIT)) {
-                        groupId = ctrl.groupRepository.persist(generateGroup(eventId, gx));
-                    }
-
-                    total += dataCount;
-
-                    dataRows.Clear();
-                    for (int dx = 0; dx < dataCount; dx++) {
-                        Data data = generateData(groupId, dx);
-                        dataRows.Add(data.InstanceUID, data);
-                    }
-
-                    // in SP mode, the SP does the uniqieness testing - in BATCH mode we do it separately
-                    if (ctrl.bulkCommitMode == SqlSession.Mode.BATCH)
+                using (SqlSession session = new SqlSession(SqlSession.Mode.TRANSACTIONAL))
+                {
+                    for (int retry = 0; ; retry++)
                     {
-                        long uniquestart = timer.ElapsedTicks;
-                        using (SqlSession session = new SqlSession(SqlSession.Mode.AUTO_COMMIT))
+                        try
                         {
-                            long uniqueRows = ctrl.dataRepository.checkUniqueness(dataRows);
+                            Owner owner = generateOwner();
+                            ownerId = insertOwner(ref owner);
 
-                            appLog.info("{0} rows out of {1} new rows are unique", uniqueRows, dataCount);
-                            report("checkUniqueness", dataCount, timer.ElapsedTicks - uniquestart);
+                            Console.Out.WriteLine("\n------------------------------------------------");
+                            report("Owner", 1, timer.ElapsedTicks - start);
 
-                            long updateStart = timer.ElapsedTicks;
-                            ctrl.groupRepository.update(groupId, "dataCount", uniqueRows);
-                            appLog.info("Group.datCount update; duration={0} ms", (1.0 * (timer.ElapsedTicks - updateStart)) / Stopwatch.Frequency);
-                            report("Group.dataCount update", 1, timer.ElapsedTicks - updateStart);
-                        }
-                        //appLog.info("Unique check time={0} ms", Environment.TickCount - uniquestart);
-                        report("Unique processing", dataCount, timer.ElapsedTicks - uniquestart);
-                    }
+                            Event ev = generateEvent(ownerId);
+                            eventId = insertEvent(ref ev);
 
-                    long dataStart = timer.ElapsedTicks;
-                    int count = 0;
-                    try {
-                        using (SqlSession session = new SqlSession(ctrl.bulkCommitMode)) {
-                            foreach (Data data in dataRows.Values) {
-                                ctrl.dataRepository.persist(data);
-                                count++;
+                            workTime += timer.ElapsedTicks - workStart;
+
+                            int groupCount = ctrl.minGroups + ctrl.random.Next(ctrl.maxGroups - ctrl.minGroups);
+                            appLog.info("Creating {0} groups", groupCount);
+
+                            total = 2 + groupCount;
+
+                            // data records per group
+                            int dataCount = (ctrl.minData + ctrl.random.Next(ctrl.maxData - ctrl.minData)) / groupCount;
+                            appLog.info("Creating {0} Data records @ {1} records per group", dataCount * groupCount, dataCount);
+
+                            workStart = timer.ElapsedTicks;
+                            for (int gx = 0; gx < groupCount; gx++)
+                            {
+                                Group group = generateGroup(eventId, gx);
+                                appLog.info("group= {0}", group.GroupGuid);
+                                groupId = insertGroup(ref group);
+
+                                group.DataCount = dataCount;
+
+                                total += dataCount;
+
+                                long dataStart = timer.ElapsedTicks;
+                                insertDataForGroup(group);
+
+                                report("Data Group", dataCount, timer.ElapsedTicks - dataStart);
                             }
-                            appLog.info("inserting {0} data rows", count);
+
+                            break;  //  work complete
                         }
-                    } catch (Exception e) {
-                        appLog.info("Error inserting data row {0}", e.ToString());
+                        catch (Exception e)
+                        {
+                            appLog.info("Error inserting data for run {0}:\n\t{1}", unique, e.ToString());
+
+                            if (session.retry(e) && retry < ctrl.maxRetry)
+                            {
+                                appLog.info("Retrying...");
+                                try { Thread.Sleep(ctrl.retrySleep * (retry + 1)); }
+                                catch (Exception) { }
+
+                                continue;
+                            }
+                            throw new PersistenceException("Permanent error after {0} retries", retry);
+                        }
                     }
 
-                    report("Data Group", dataCount, timer.ElapsedTicks - dataStart);
-                }
-
-                // close the enclosing tx if it is open
-                if (outerTx != null) outerTx.Dispose();
+                }   // commit the enclosing tx
 
                 //timer.Stop();
 
@@ -815,6 +804,148 @@ namespace NuoTest
                 data.RegionWeek = (unique % 2 == 0 ? "Region_A-" : "Region_B-") + (unique / 35000);
 
                 return data;    // don't persist individually - we may be persisting in a batch
+            }
+
+            protected long insertOwner(ref Owner owner)
+            {
+                using (DbCommand cmd = SqlSession.getCurrent().getStatement("importer_InsertOwner"))
+                {
+                    cmd.Parameters[1].Value = owner.CustomerId;
+                    cmd.Parameters[2].Value = owner.OwnerGuid;
+                    cmd.Parameters[3].Value = owner.DateCreated;
+                    cmd.Parameters[4].Value = owner.LastUpdated;
+                    cmd.Parameters[5].Value = owner.Name;
+                    cmd.Parameters[6].Value = owner.MasterAliasId;
+                    cmd.Parameters[7].Value = owner.Region;
+
+                    cmd.ExecuteNonQuery();
+                    owner.Id = Int64.Parse(cmd.Parameters["@ID"].Value.ToString());
+
+                    if (owner.Id <= 0)
+                    {
+                        throw new PersistenceException("Error creating owner: {0}", owner.Id);
+                    }
+
+                }
+
+                return owner.Id;
+            }
+
+            protected long insertEvent(ref Event ev)
+            {
+                using (DbCommand cmd = SqlSession.getCurrent().getStatement("importer_InsertEvent"))
+                {
+                    cmd.Parameters[1].Value = ev.CustomerId;
+                    cmd.Parameters[2].Value = ev.OwnerId;
+                    cmd.Parameters[3].Value = ev.EventGuid;
+                    cmd.Parameters[4].Value = ev.Name;
+                    cmd.Parameters[5].Value = ev.Description;
+                    cmd.Parameters[6].Value = ev.DateCreated;
+                    cmd.Parameters[7].Value = ev.LastUpdated;
+                    cmd.Parameters[8].Value = ev.Region;
+
+                    cmd.ExecuteNonQuery();
+                    ev.Id = Int64.Parse(cmd.Parameters["@ID"].Value.ToString());
+
+                    if (ev.Id <= 0)
+                    {
+                        throw new PersistenceException("Error persisting Event: {0}", ev.Id);
+                    }
+                }
+
+                return ev.Id;
+            }
+
+            protected long insertGroup(ref Group group)
+            {
+                using (DbCommand cmd = SqlSession.getCurrent().getStatement("importer_InsertGroup"))
+                {
+                    cmd.Parameters[1].Value = group.EventId;
+                    cmd.Parameters[2].Value = group.GroupGuid;
+                    cmd.Parameters[3].Value = group.Description;
+                    cmd.Parameters[4].Value = group.DataCount;
+                    cmd.Parameters[5].Value = group.DateCreated;
+                    cmd.Parameters[6].Value = group.LastUpdated;
+                    cmd.Parameters[7].Value = group.Region;
+                    cmd.Parameters[8].Value = group.Week;
+
+                    cmd.ExecuteNonQuery();
+                    group.Id = Int64.Parse(cmd.Parameters["@ID"].Value.ToString());
+                    if (group.Id <= 0)
+                    {
+                        throw new PersistenceException("Error persisting Group: {0}", group.Id);
+                    }
+                }
+
+                return group.Id;
+            }
+
+            protected void insertDataForGroup(Group group)
+            {
+                int dataCount = group.DataCount;
+                List<DataRow> batch = new List<DataRow>(dataCount);
+
+                try
+                {
+                    DataTable table = new System.Data.DataTable("NuoTest.DATA");
+
+                    table.Columns.Add("groupId", typeof(long));
+                    table.Columns.Add("dataGuid", typeof(String));
+                    table.Columns.Add("instanceUID", typeof(String));
+                    table.Columns.Add("createdDateTime", typeof(DateTime));
+                    table.Columns.Add("acquiredDateTime", typeof(DateTime));
+                    table.Columns.Add("version", typeof(Int16));
+                    table.Columns.Add("active", typeof(bool));
+                    table.Columns.Add("sizeOnDiskMB", typeof(float));
+                    table.Columns.Add("regionWeek", typeof(String));
+
+
+                    for (int dx = 0; dx < dataCount; dx++)
+                    {
+                        Data data = generateData(group.Id, dx);
+
+                        DataRow row = table.NewRow();
+                        batch.Add(row);
+
+                        row[0] = data.GroupId;
+                        row[1] = data.DataGuid;
+                        row[2] = data.InstanceUID;
+                        row[3] = data.CreatedDateTime;
+                        row[4] = data.AcquiredDateTime;
+                        row[5] = data.Version;
+                        row[6] = data.Active;
+                        row[7] = data.SizeOnDiskMB;
+                        row[8] = data.RegionWeek;
+                    }
+                    appLog.info("inserting {0} data rows", dataCount);
+
+                    NuoDbBulkLoader loader = new NuoDbBulkLoader((NuoDbConnection)SqlSession.getCurrent().Connection());
+                    loader.DestinationTableName = table.TableName;
+
+                    int index = 0;
+                    foreach (DataColumn c in table.Columns)
+                    {
+                        loader.ColumnMappings.Add(index++, c.ColumnName);
+                    }
+
+                    loader.WriteToServer(batch.ToArray());
+
+                    table.Clear();
+                    batch.Clear();
+
+                    using (DbCommand cmd = SqlSession.getCurrent().getStatement("importer_UpdateGroup"))
+                    {
+                        cmd.Parameters[0].Value = group.Id;
+                        cmd.ExecuteNonQuery();
+                    }
+
+                }
+                catch (Exception e)
+                {
+                    appLog.info("Error inserting data row {0}", e.ToString());
+                    throw new PersistenceException("Error in BATCH insert of Data rows", e);
+                }
+
             }
 
             private void report(String name, int count, long duration) {

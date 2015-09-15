@@ -297,7 +297,13 @@ namespace NuoTest
                         else if (statement.StartsWith("CREATE PROCEDURE ", StringComparison.CurrentCultureIgnoreCase))
                             multiLine = true;
 
+                        else if (statement.StartsWith("CREATE TRIGGER ", StringComparison.CurrentCultureIgnoreCase))
+                            multiLine = true;
+
                         else if (statement.Equals("END_PROCEDURE", StringComparison.CurrentCultureIgnoreCase))
+                            multiLine = false;
+
+                        else if (statement.Equals("END_TRIGGER", StringComparison.CurrentCultureIgnoreCase))
                             multiLine = false;
 
                         if (statement != null)
@@ -358,6 +364,7 @@ namespace NuoTest
                         //    cmd.Parameters[0].Direction = ParameterDirection.InputOutput;
                         //}
 
+                        cmd.Parameters[0].ParameterName = "@ID";
                         cmd.Parameters[0].Value = new Int64();
                         cmd.Parameters[0].Direction = ParameterDirection.Output;
                         cmd.Parameters[0].DbType = DbType.Int64;
@@ -414,7 +421,7 @@ namespace NuoTest
             }
         }
 
-        protected DbConnection Connection()
+        public DbConnection Connection()
         {
             // we share our parent's connection - so delegate to parent
             if (parent != null)
