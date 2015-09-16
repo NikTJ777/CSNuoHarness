@@ -32,9 +32,9 @@
     <WarningLevel>4</WarningLevel>
   </PropertyGroup>
   <ItemGroup>
-    <Reference Include="NuoDb.Data.Client, Version=2.3.0.5, Culture=neutral, PublicKeyToken=e49f105b7fb49b38, processorArchitecture=MSIL">
-      <HintPath>..\packages\NuoDb.Data.Client.2.3.0.5\lib\net40\NuoDb.Data.Client.dll</HintPath>
-      <Private>True</Private>
+    <Reference Include="NuoDb.Data.Client, Version=2.3.0.6, Culture=neutral, PublicKeyToken=e49f105b7fb49b38, processorArchitecture=MSIL">
+      <SpecificVersion>False</SpecificVersion>
+      <HintPath>..\packages\NuoDb.Data.Client.2.3.0.6\lib\net40\NuoDb.Data.Client.dll</HintPath>
     </Reference>
     <Reference Include="System" />
     <Reference Include="System.Core" />

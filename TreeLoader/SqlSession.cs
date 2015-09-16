@@ -227,7 +227,7 @@ namespace NuoTest
             }
         }
 
-        public DbCommand getStatement(String sql)
+        public NuoDbCommand getStatement(String sql)
         {
             if (mode == Mode.BATCH /* && batch != null && batch.Count > 0 */)
             {
@@ -267,7 +267,7 @@ namespace NuoTest
 
             //batch = (mode == Mode.BATCH ? ps : null);
 
-            return cmd;
+            return (NuoDbCommand) cmd;
         }
 
         public void execute(String script)

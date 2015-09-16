@@ -696,12 +696,10 @@ namespace NuoTest
                                 appLog.info("group= {0}", group.GroupGuid);
                                 groupId = insertGroup(ref group);
 
-                                group.DataCount = dataCount;
-
                                 total += dataCount;
 
                                 long dataStart = timer.ElapsedTicks;
-                                insertDataForGroup(group);
+                                insertDataForGroup(ref group, dataCount);
 
                                 report("Data Group", dataCount, timer.ElapsedTicks - dataStart);
                             }
@@ -880,29 +878,113 @@ namespace NuoTest
                 return group.Id;
             }
 
-            protected void insertDataForGroup(Group group)
+            protected void insertDataForGroup(ref Group group, int dataCount)
             {
-                int dataCount = group.DataCount;
-                List<DataRow> batch = new List<DataRow>(dataCount);
-
                 try
                 {
+                    switch (SqlSession.globalCommsMode)
+                    {
+                        case SqlSession.CommunicationMode.SQL:
+                            insertDataWithSQL(group.Id, dataCount);
+                            break;
+
+                        case SqlSession.CommunicationMode.STORED_PROCEDURE:
+                            insertDataWithSP(group.Id, dataCount);
+                            break;
+                    }
+
+                    group.DataCount = dataCount;
+                }
+                catch (Exception e)
+                {
+                    appLog.info("Error inserting data rows {0}", e.ToString());
+                    throw new PersistenceException("Error INSERTing Data rows", e);
+                }
+
+            }
+
+            protected void insertDataWithSQL(long groupId, int dataCount)
+            {
+                List<DataRow> batch = new List<DataRow>(dataCount);
+
+                DataTable table = new System.Data.DataTable("NuoTest.DATA");
+
+                table.Columns.Add("groupId", typeof(long));
+                table.Columns.Add("dataGuid", typeof(String));
+                table.Columns.Add("instanceUID", typeof(String));
+                table.Columns.Add("createdDateTime", typeof(DateTime));
+                table.Columns.Add("acquiredDateTime", typeof(DateTime));
+                table.Columns.Add("version", typeof(Int16));
+                table.Columns.Add("active", typeof(bool));
+                table.Columns.Add("sizeOnDiskMB", typeof(float));
+                table.Columns.Add("regionWeek", typeof(String));
+
+                for (int dx = 0; dx < dataCount; dx++)
+                {
+                    Data data = generateData(groupId, dx);
+
+                    DataRow row = table.NewRow();
+                    batch.Add(row);
+
+                    row[0] = data.GroupId;
+                    row[1] = data.DataGuid;
+                    row[2] = data.InstanceUID;
+                    row[3] = data.CreatedDateTime;
+                    row[4] = data.AcquiredDateTime;
+                    row[5] = data.Version;
+                    row[6] = data.Active;
+                    row[7] = data.SizeOnDiskMB;
+                    row[8] = data.RegionWeek;
+                }
+                appLog.info("inserting {0} data rows in BATCH SQL mode", dataCount);
+
+                NuoDbBulkLoader loader = new NuoDbBulkLoader((NuoDbConnection)SqlSession.getCurrent().Connection());
+                loader.DestinationTableName = table.TableName;
+
+                int index = 0;
+                foreach (DataColumn c in table.Columns)
+                {
+                    loader.ColumnMappings.Add(index++, c.ColumnName);
+                }
+
+                loader.WriteToServer(batch.ToArray());
+
+                table.Clear();
+                batch.Clear();
+
+                using (DbCommand cmd = SqlSession.getCurrent().getStatement("importer_UpdateGroup"))
+                {
+                    cmd.Parameters[0].Value = groupId;
+                    cmd.ExecuteNonQuery();
+                }
+            }
+
+            /**
+             * Batch insert using SPs.
+             * Currently, the API for passing in the multiple SP Parameter sets uses DataRow / DataTable.
+             * Hopefully, in the near future, it will also support CmdParameterCollection.
+             */
+            protected void insertDataWithSP(long groupId, int dataCount)
+            {
+                using (NuoDbCommand cmd = SqlSession.getCurrent().getStatement("importer_InsertData"))
+                {
+                    List<DataRow> batch = new List<DataRow>(dataCount);
+
                     DataTable table = new System.Data.DataTable("NuoTest.DATA");
 
-                    table.Columns.Add("groupId", typeof(long));
-                    table.Columns.Add("dataGuid", typeof(String));
-                    table.Columns.Add("instanceUID", typeof(String));
-                    table.Columns.Add("createdDateTime", typeof(DateTime));
-                    table.Columns.Add("acquiredDateTime", typeof(DateTime));
-                    table.Columns.Add("version", typeof(Int16));
-                    table.Columns.Add("active", typeof(bool));
-                    table.Columns.Add("sizeOnDiskMB", typeof(float));
-                    table.Columns.Add("regionWeek", typeof(String));
-
+                    table.Columns.Add("@groupId", typeof(long));
+                    table.Columns.Add("@dataGuid", typeof(String));
+                    table.Columns.Add("@instanceUID", typeof(String));
+                    table.Columns.Add("@createdDateTime", typeof(DateTime));
+                    table.Columns.Add("@acquiredDateTime", typeof(DateTime));
+                    table.Columns.Add("@version", typeof(Int16));
+                    table.Columns.Add("@active", typeof(bool));
+                    table.Columns.Add("@sizeOnDiskMB", typeof(float));
+                    table.Columns.Add("@regionWeek", typeof(String));
 
                     for (int dx = 0; dx < dataCount; dx++)
                     {
-                        Data data = generateData(group.Id, dx);
+                        Data data = generateData(groupId, dx);
 
                         DataRow row = table.NewRow();
                         batch.Add(row);
@@ -917,35 +999,16 @@ namespace NuoTest
                         row[7] = data.SizeOnDiskMB;
                         row[8] = data.RegionWeek;
                     }
-                    appLog.info("inserting {0} data rows", dataCount);
+                    appLog.info("inserting {0} data rows in BATCH SP mode", dataCount);
 
-                    NuoDbBulkLoader loader = new NuoDbBulkLoader((NuoDbConnection)SqlSession.getCurrent().Connection());
-                    loader.DestinationTableName = table.TableName;
-
-                    int index = 0;
-                    foreach (DataColumn c in table.Columns)
-                    {
-                        loader.ColumnMappings.Add(index++, c.ColumnName);
-                    }
-
-                    loader.WriteToServer(batch.ToArray());
-
-                    table.Clear();
-                    batch.Clear();
-
-                    using (DbCommand cmd = SqlSession.getCurrent().getStatement("importer_UpdateGroup"))
-                    {
-                        cmd.Parameters[0].Value = group.Id;
-                        cmd.ExecuteNonQuery();
-                    }
-
+                    cmd.ExecuteBatch(batch.ToArray());
                 }
-                catch (Exception e)
+
+                using (DbCommand cmd = SqlSession.getCurrent().getStatement("importer_UpdateGroup"))
                 {
-                    appLog.info("Error inserting data row {0}", e.ToString());
-                    throw new PersistenceException("Error in BATCH insert of Data rows", e);
+                    cmd.Parameters[0].Value = groupId;
+                    cmd.ExecuteNonQuery();
                 }
-
             }
 
             private void report(String name, int count, long duration) {
